@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Atomic Advertising makes work people actually pay attention to. Smart, funny creative that earns attention and sticks."
+    />
+    <title>Atomic Ad Agency</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <a class="logo" href="#">
+        <img
+          src="/atomic-logo300.png"
+          alt="Atomic Ad Agency"
+          width="300"
+          height="95"
+          decoding="async"
+        />
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="#about">About</a>
+        <a href="#work">Work</a>
+        <a href="#news">News</a>
+        <a href="#contact">Contact</a>
+      </nav>
+      <button type="button" class="nav-toggle" aria-expanded="false" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-heading">
+        <div class="hero__burst" aria-hidden="true">
+          <svg viewBox="0 0 200 200" width="280" height="280">
+            <polygon
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.2"
+              points="100,0 108,72 180,50 130,100 180,150 108,128 100,200 92,128 20,150 70,100 20,50 92,72"
+            />
+          </svg>
+        </div>
+        <h1 id="hero-heading" class="hero__title">
+          Atomic Advertising makes work people actually pay attention to.
+        </h1>
+        <div class="hero__mission">
+          <p>
+            Because most advertising isn’t bad—<br />
+            it’s just forgettable.
+          </p>
+          <p class="hero__style-callout">
+            We focus on the idea first.<br />
+            Not the format. Not the trend. Not the noise.
+          </p>
+          <p>
+            If it’s interesting, people look.<br />
+            If it’s not, nothing else matters.
+          </p>
+          <p>
+            So we make smart, funny work that earns attention—<br />
+            and sticks.
+          </p>
+          <p class="hero__punch">
+            <span class="hero__punch--loud">CRITICAL IMPACT!</span>
+          </p>
+        </div>
+        <a class="hero__cta" href="#contact">Start a project</a>
+      </section>
+
+      <section id="about" class="section section--about">
+        <div class="section__inner">
+          <h2 class="section__title">About</h2>
+          <p class="section__lead">
+            Creative brains soaked in coffee and obsessed with ideas that are cool as shit. We don't want to just fill whitespace, we want to make an amazing ad that makes people say, "I got to have that!"
+          </p>
+          <ul class="about__list">
+            <li>Social media creatives, Instagram & TikTok ads, carousels, video concepts, banners — all the stuff that lives online and needs to stop the scroll.
+            </li>
+            <li>We’ll happily do print work too…
+              <b>but we’ll charge you more for it.</b>
+              </li>
+            <li>Because let’s be honest — the real world still runs on screens.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="work" class="section section--work">
+        <div class="section__inner">
+          <h2 class="section__title">Work</h2>
+          <p class="section__lead">
+            Selected launches and campaigns. More case studies on request.
+          </p>
+          <div class="work__grid">
+            <article class="work__card">
+              <span class="work__tag">Campaign</span>
+              <h3 class="work__name">Launch Velocity</h3>
+              <p>Full-funnel awareness for a challenger brand in a sleepy category.</p>
+            </article>
+            <article class="work__card">
+              <span class="work__tag">Brand</span>
+              <h3 class="work__name">Midnight Diner Co.</h3>
+              <p>Identity and packaging that feels like neon and vinyl at 2 a.m.</p>
+            </article>
+            <article class="work__card">
+              <span class="work__tag">Social</span>
+              <h3 class="work__name">Thread Theory</h3>
+              <p>Platform-native series—sharp, fast, impossible to scroll past.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="news" class="section section--news">
+        <div class="section__inner">
+          <h2 class="section__title">News</h2>
+          <ul class="news__list">
+            <li>
+              <time datetime="2026-05-01">May 2026</time>
+              <span>Atomic opens its doors—site goes live. More announcements soon.</span>
+            </li>
+            <li>
+              <time datetime="2026-04-15">Apr 2026</time>
+              <span>We’re hiring strategists and art directors who like tight briefs and loose ideas.</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="contact" class="section section--contact">
+        <div class="section__inner section__inner--contact">
+          <h2 class="section__title">Contact</h2>
+          <p class="section__lead">
+            New business, press, or a wild brief—we’re listening.
+          </p>
+          <address class="contact__block">
+            <a href="mailto:hello@atomicad.agency">hello@atomicad.agency</a>
+            <span class="contact__note">Replace with your real email when you’re ready.</span>
+          </address>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>© Atomic Ad Agency</p>
+    </footer>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
