@@ -19,74 +19,63 @@
   <body>
     <div class="grain" aria-hidden="true"></div>
 
-    <header class="site-header">
-      <a class="logo" href="#">
-        <img
-          src="/atomic-logo200.png"
-          alt="Atomic Ad Agency"
-          width="300"
-          height="95"
-          decoding="async"
-        />
-      </a>
-      <nav class="nav" aria-label="Primary">
-        <a href="#about">About</a>
-        <a href="#work">Work</a>
-        <a href="#news">News</a>
-        <a href="#contact">Contact</a>
-      </nav>
-      <button type="button" class="nav-toggle" aria-expanded="false" aria-label="Open menu">
-        <span></span><span></span><span></span>
-      </button>
-    </header>
+    <div id="header-mount"></div>
 
     <main>
       <section class="hero" aria-labelledby="hero-heading">
-        <div class="hero__burst" aria-hidden="true">
-          <svg viewBox="0 0 200 200" width="280" height="280">
-            <polygon
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.2"
-              points="100,0 108,72 180,50 130,100 180,150 108,128 100,200 92,128 20,150 70,100 20,50 92,72"
-            />
-          </svg>
+        <div class="hero__layout">
+          <div class="hero__copy">
+            <h1 id="hero-heading" class="hero__title">
+              We makes ads people<br /> actually pay attention to.
+            </h1>
+            <div class="hero__mission">
+              <p>
+                Because most advertising isn’t bad—<br />
+                it’s just forgettable.
+              </p>
+              <p class="hero__style-callout">
+                We focus on the idea first.<br />
+                Not the format. Not the trend. Not the noise.
+              </p>
+              <p>
+                If it’s interesting, people look.<br />
+                If it’s not, nothing else matters.
+              </p>
+              <p>
+                So we make smart, funny work that earns attention—<br />
+                and sticks.
+              </p>
+              <p class="hero__punch">
+                <span class="hero__punch--loud">CRITICAL IMPACT!</span>
+              </p>
+            </div>
+            <a class="hero__cta" href="#contact">Start a project</a>
+          </div>
+          <img
+            class="hero__figure"
+            src="/womaninchair.png"
+            alt="Illustration of a woman in a suit with coffee, seated in a chair."
+            width="1100"
+            height="1573"
+            loading="eager"
+            decoding="async"
+          />
         </div>
-        <h1 id="hero-heading" class="hero__title">
-          Atomic Advertising makes work people actually pay attention to.
-        </h1>
-        <div class="hero__mission">
-          <p>
-            Because most advertising isn’t bad—<br />
-            it’s just forgettable.
-          </p>
-          <p class="hero__style-callout">
-            We focus on the idea first.<br />
-            Not the format. Not the trend. Not the noise.
-          </p>
-          <p>
-            If it’s interesting, people look.<br />
-            If it’s not, nothing else matters.
-          </p>
-          <p>
-            So we make smart, funny work that earns attention—<br />
-            and sticks.
-          </p>
-          <p class="hero__punch">
-            <span class="hero__punch--loud">CRITICAL IMPACT!</span>
-          </p>
-        </div>
-        <a class="hero__cta" href="#contact">Start a project</a>
       </section>
 
       <section id="about" class="section section--about">
         <div class="section__inner">
           <h2 class="section__title">About</h2>
           <p class="section__lead">
-            Creative brains soaked in coffee and obsessed with ideas that are cool as shit. We don't want to just fill whitespace; we want to make an amazing ad that makes people say, "I got to have that!"
+            Creative brains soaked in coffee and obsessed<br /> 
+            with ideas that are cool as shit. We don't want<br /> 
+            to just fill whitespace; we want to make an amazing<br /> 
+            ad that makes people say, "I got to have that!"
           </p>
           <ul class="about__list">
-            <li>Social media creatives, Instagram & TikTok ads, carousels, and digitally captured video — all the stuff that lives online and needs to stop the scroll.
+            <li>Social media creatives, Instagram & TikTok ads, carousels,<br /> 
+              and digitally captured video — all the stuff that lives online<br /> 
+              and needs to stop the scroll.
             </li>
             <li>We’ll happily do print work too…
               <b>but we’ll charge you more for it.</b>
@@ -109,9 +98,17 @@
               <p>Full-funnel awareness for a challenger brand in a sleepy category.</p>
             </article>
             <article class="work__card">
-              <span class="work__tag">Brand</span>
-              <h3 class="work__name">Midnight Diner Co.</h3>
-              <p>Identity and packaging that feels like neon and vinyl at 2 a.m.</p>
+              <a class="work__card-link" href="/plonk.html">
+                <img
+                  class="work__thumb"
+                  src="/XrayGlassesAd.jpg"
+                  alt="Plonk! x-ray specs print ad"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <h3 class="work__name">Plonk!</h3>
+              </a>
+              <p>exposes what X-ray glasses were never supposed to reveal.</p>
             </article>
             <article class="work__card">
               <span class="work__tag">Social</span>

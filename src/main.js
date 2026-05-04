@@ -1,3 +1,24 @@
+import 'lenis/dist/lenis.css';
+import Lenis from 'lenis';
+import { createSiteHeader } from './components/site-header.js';
+
+const headerMount = document.getElementById('header-mount');
+if (headerMount) {
+  const absoluteSectionLinks = headerMount.dataset.sectionLinks === 'absolute';
+  headerMount.replaceWith(createSiteHeader({ absoluteSectionLinks }));
+}
+
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+if (!prefersReducedMotion) {
+  new Lenis({
+    autoRaf: true,
+    anchors: true,
+    smoothWheel: true,
+    stopInertiaOnNavigate: true,
+  });
+}
+
 const toggle = document.querySelector('.nav-toggle');
 const nav = document.querySelector('.nav');
 
