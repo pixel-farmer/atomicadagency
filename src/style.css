@@ -570,6 +570,13 @@ a:hover {
   max-width: min(50rem, 100%);
 }
 
+.case__brand-logo {
+  display: block;
+  width: min(500px, 100%);
+  height: auto;
+  margin: 0 0 1.5rem;
+}
+
 .case__prose p {
   margin: 0 0 1.25rem;
   color: var(--ink-soft);
