@@ -1,6 +1,9 @@
 import 'lenis/dist/lenis.css';
 import Lenis from 'lenis';
+import { inject } from '@vercel/analytics';
 import { createSiteHeader } from './components/site-header.js';
+
+inject();
 
 const headerMount = document.getElementById('header-mount');
 if (headerMount) {
