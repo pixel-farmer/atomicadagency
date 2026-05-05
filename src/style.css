@@ -567,14 +567,28 @@ a:hover {
 
 .case__prose {
   padding: clamp(2.5rem, 6vw, 4rem) var(--space);
-  max-width: min(50rem, 100%);
+  max-width: min(82rem, 100%);
+}
+
+.case__branding {
+  display: grid;
+  grid-template-columns: minmax(28rem, 1fr) minmax(16rem, auto);
+  align-items: start;
+  column-gap: clamp(1rem, 3vw, 2rem);
+  margin-bottom: 1.5rem;
 }
 
 .case__brand-logo {
   display: block;
   width: min(500px, 100%);
   height: auto;
-  margin: 0 0 1.5rem;
+  margin: 0;
+}
+
+@media (min-width: 1200px) {
+  .case__brand-logo {
+    width: min(620px, 100%);
+  }
 }
 
 .case__prose p {
@@ -618,6 +632,11 @@ a:hover {
 }
 
 @media (max-width: 960px) {
+  .case__branding {
+    grid-template-columns: 1fr;
+    row-gap: 1rem;
+  }
+
   .case__gallery {
     grid-template-columns: 1fr;
   }
