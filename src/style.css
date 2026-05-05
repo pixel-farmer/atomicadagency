@@ -556,6 +556,15 @@ a:hover {
   color: var(--ink-soft);
 }
 
+.case__asset {
+  width: min(42rem, 100%);
+  margin-inline: auto;
+}
+
+.case__asset--logo {
+  width: min(18rem, 100%);
+}
+
 .case__prose {
   padding: clamp(2.5rem, 6vw, 4rem) var(--space);
   max-width: min(50rem, 100%);
@@ -585,4 +594,28 @@ a:hover {
 
 .case__cta-wrap {
   padding: 0 var(--space) clamp(2rem, 5vw, 3rem);
+}
+
+.case__gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+}
+
+.case__figure--gallery {
+  border-right: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.case__figure--gallery:last-child {
+  border-right: 0;
+}
+
+@media (max-width: 960px) {
+  .case__gallery {
+    grid-template-columns: 1fr;
+  }
+
+  .case__figure--gallery {
+    border-right: 0;
+  }
 }
