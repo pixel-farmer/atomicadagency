@@ -172,7 +172,9 @@ a:hover {
 .hero {
   position: relative;
   width: 100%;
-  padding: clamp(3rem, 10vw, 7rem) var(--space) clamp(4rem, 12vw, 8rem);
+  padding-top: clamp(3rem, 10vw, 7rem);
+  padding-inline: var(--space);
+  padding-bottom: clamp(2rem, 4vw, 3.5rem);
 }
 
 .hero__layout {
