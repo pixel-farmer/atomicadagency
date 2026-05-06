@@ -613,6 +613,37 @@ a:hover {
   margin-top: 0;
 }
 
+.case__prose.interview {
+  max-width: min(50rem, 100%);
+}
+
+.interview__qa {
+  margin: 0;
+}
+
+.interview__q {
+  margin: 0 0 1rem;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.interview__a p {
+  margin: 0 0 1.25rem;
+  color: var(--ink-soft);
+}
+
+.interview__a p:last-child {
+  margin-bottom: 0;
+}
+
+.interview__label {
+  font-weight: 700;
+  color: var(--ink);
+  margin-right: 0.35em;
+}
+
 .case__cta-wrap {
   padding: 0 var(--space) clamp(2rem, 5vw, 3rem);
 }

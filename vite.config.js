@@ -12,6 +12,7 @@ export default defineConfig({
       input: {
         main: path.resolve(__dirname, 'index.html'),
         plonk: path.resolve(__dirname, 'plonk.html'),
+        creativeDirector: path.resolve(__dirname, 'creative-director.html'),
       },
     },
   },
