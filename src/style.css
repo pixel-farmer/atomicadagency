@@ -466,7 +466,7 @@ a:hover {
   font-style: normal;
 }
 
-.section--contact a {
+.section--contact .contact__email {
   color: var(--cream);
   font-weight: 700;
   font-size: var(--text-xl);
@@ -475,8 +475,37 @@ a:hover {
   text-underline-offset: 0.15em;
 }
 
-.section--contact a:hover {
+.section--contact .contact__email:hover {
   color: var(--accent-hot);
+}
+
+.contact__social {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.section--contact .contact__social-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1.1rem;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--cream);
+  background: transparent;
+  text-decoration: none;
+  border: 2px solid color-mix(in srgb, var(--cream) 45%, transparent);
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.section--contact .contact__social-link:hover {
+  color: var(--cream);
+  background: color-mix(in srgb, var(--cream) 14%, transparent);
+  border-color: var(--cream);
 }
 
 .contact__note {
