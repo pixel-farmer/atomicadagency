@@ -11,7 +11,7 @@ export function createSiteHeader({ absoluteSectionLinks = false } = {}) {
   header.innerHTML = `
     <a class="logo" href="/">
       <img
-        src="/atomic-logo200.png"
+        src="/atomic-logo250.png"
         alt="Atomic Ad Agency"
         width="300"
         height="95"

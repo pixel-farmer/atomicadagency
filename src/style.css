@@ -5,10 +5,13 @@
   --ink-soft: #ea7400;
   --accent: #c43c2b;
   --accent-hot: #e85d4a;
-  --teal: #373737;
+  --teal: #373737; /* large dark type + contact band */
   --teal-muted: #4b4b4b;
   --font-display: "Archivo Black", system-ui, sans-serif;
   --font-body: "DM Sans", system-ui, sans-serif;
+  /* Righteous + hero-style tracking — home H1, section H2s, case H2s */
+  --font-display-righteous: "Righteous", var(--font-display);
+  --letter-display-hero: calc(-0.03em + 0.03em * 1.5);
   --space: clamp(1rem, 4vw, 2.5rem);
 
   /* Fluid type: scales continuously with viewport (rem + vw) */
@@ -212,9 +215,14 @@ a:hover {
   font-family: var(--font-display);
   font-size: var(--text-h1);
   line-height: 1.05;
-  letter-spacing: -0.03em;
-  color: var(--ink);
+  letter-spacing: var(--letter-display-hero);
+  color: var(--teal);
   margin: 0 0 clamp(1.75rem, 4vw, 2.75rem);
+}
+
+/* Home hero only — index.html */
+#hero-heading {
+  font-family: var(--font-display-righteous);
 }
 
 .hero__mission p {
@@ -224,7 +232,7 @@ a:hover {
 .hero__style-callout {
   font-size: var(--text-lg);
   font-weight: 500;
-  color: var(--ink);
+  color: var(--teal);
   border-left: 4px solid var(--accent);
   padding-left: 1.25rem;
   margin-left: 0;
@@ -234,16 +242,16 @@ a:hover {
   margin-top: 2rem;
   font-size: var(--text-md);
   font-weight: 600;
-  color: var(--ink);
+  color: var(--teal);
   line-height: 1.35;
 }
 
 .hero__punch--loud {
   display: inline-block;
   margin-top: 0.35rem;
-  font-family: var(--font-display);
+  font-family: var(--font-display-righteous);
   font-size: var(--text-display);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--letter-display-hero);
   color: var(--teal);
 }
 
@@ -289,10 +297,10 @@ a:hover {
 }
 
 .section__title {
-  font-family: var(--font-display);
+  font-family: var(--font-display-righteous);
   font-size: var(--text-h2);
-  letter-spacing: -0.02em;
-  color: var(--ink);
+  letter-spacing: var(--letter-display-hero);
+  color: var(--teal);
   margin: 0 0 1rem;
 }
 
@@ -336,6 +344,35 @@ a:hover {
   transform: rotate(45deg);
 }
 
+.about__social {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: clamp(1.75rem, 4vw, 2.5rem);
+}
+
+.about__social-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1.1rem;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--teal);
+  background: transparent;
+  text-decoration: none;
+  border: 2px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.about__social-link:hover {
+  color: var(--cream);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 .section--work {
   background: var(--ink);
   color: var(--cream);
@@ -345,6 +382,10 @@ a:hover {
 .section--work .section__title,
 .section--work .section__lead {
   color: var(--cream);
+}
+
+.section--work .section__title {
+  letter-spacing: var(--letter-display-hero);
 }
 
 .section--work .section__lead {
@@ -458,6 +499,10 @@ a:hover {
   color: var(--cream);
 }
 
+.section--contact .section__title {
+  letter-spacing: var(--letter-display-hero);
+}
+
 .section--contact .section__lead {
   color: color-mix(in srgb, var(--cream) 82%, transparent);
 }
@@ -477,35 +522,6 @@ a:hover {
 
 .section--contact .contact__email:hover {
   color: var(--accent-hot);
-}
-
-.contact__social {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
-}
-
-.section--contact .contact__social-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.55rem 1.1rem;
-  font-weight: 600;
-  font-size: var(--text-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--cream);
-  background: transparent;
-  text-decoration: none;
-  border: 2px solid color-mix(in srgb, var(--cream) 45%, transparent);
-  transition: background 0.2s, border-color 0.2s, color 0.2s;
-}
-
-.section--contact .contact__social-link:hover {
-  color: var(--cream);
-  background: color-mix(in srgb, var(--cream) 14%, transparent);
-  border-color: var(--cream);
 }
 
 .contact__note {
@@ -554,7 +570,7 @@ a:hover {
   font-size: var(--text-h1);
   line-height: 1.05;
   letter-spacing: -0.03em;
-  color: var(--ink);
+  color: var(--teal);
 }
 
 .case__dek {
@@ -562,7 +578,7 @@ a:hover {
   max-width: min(50rem, 100%);
   font-size: var(--text-lg);
   font-weight: 500;
-  color: var(--ink);
+  color: var(--teal);
 }
 
 .case__figure {
@@ -637,11 +653,11 @@ a:hover {
 
 .case__h2 {
   margin: 2rem 0 0.75rem;
-  font-family: var(--font-display);
+  font-family: var(--font-display-righteous);
   font-size: var(--text-h2);
   line-height: 1.1;
-  letter-spacing: -0.02em;
-  color: var(--ink);
+  letter-spacing: var(--letter-display-hero);
+  color: var(--teal);
 }
 
 .case__h2:first-child {
@@ -660,7 +676,7 @@ a:hover {
   margin: 0 0 1rem;
   font-size: var(--text-lg);
   font-weight: 600;
-  color: var(--ink);
+  color: var(--teal);
   line-height: 1.45;
 }
 
@@ -675,7 +691,7 @@ a:hover {
 
 .interview__label {
   font-weight: 700;
-  color: var(--ink);
+  color: var(--teal);
   margin-right: 0.35em;
 }
 
