@@ -1,9 +1,9 @@
 :root {
-  --cream: #f2ede4;
-  --cream-dark: #e8e0d3;
+  --cream: #cccccc;
+  --cream-dark: #bdbdbd;
   --ink: #141212;
-  --ink-soft: #ea7400;
-  --accent: #c43c2b;
+  --ink-soft: #fe00c2;
+  --accent: #e85d4a;
   --accent-hot: #e85d4a;
   --teal: #373737; /* large dark type + contact band */
   --teal-muted: #4b4b4b;
@@ -175,7 +175,7 @@ a:hover {
 .hero {
   position: relative;
   width: 100%;
-  padding-top: clamp(3rem, 10vw, 7rem);
+  padding-top: clamp(3rem, 10vw, 1rem);
   padding-inline: var(--space);
   padding-bottom: clamp(2rem, 4vw, 3.5rem);
 }
@@ -233,7 +233,7 @@ a:hover {
   font-size: var(--text-lg);
   font-weight: 500;
   color: var(--teal);
-  border-left: 4px solid var(--accent);
+  border-left: 4px solid #e85d4a;
   padding-left: 1.25rem;
   margin-left: 0;
 }
@@ -340,7 +340,7 @@ a:hover {
   top: 0.55em;
   width: 8px;
   height: 8px;
-  background: var(--accent);
+  background: #e85d4a;
   transform: rotate(45deg);
 }
 
