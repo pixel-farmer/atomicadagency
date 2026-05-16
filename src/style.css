@@ -12,6 +12,10 @@
   /* Righteous + hero-style tracking — home H1, section H2s, case H2s */
   --font-display-righteous: "Righteous", var(--font-display);
   --letter-display-hero: calc(-0.03em + 0.03em * 1.5);
+  /* Hero bg fade over hero-bg.png — lower % = more image visible under copy */
+  --hero-fade-solid: 55%;
+  --hero-fade-mid: 28%;
+  --hero-fade-soft: 12%;
   --space: clamp(1rem, 4vw, 2.5rem);
 
   /* Fluid type: scales continuously with viewport (rem + vw) */
@@ -175,12 +179,33 @@ a:hover {
 .hero {
   position: relative;
   width: 100%;
+  overflow: hidden;
   padding-top: clamp(3rem, 10vw, 1rem);
   padding-inline: var(--space);
   padding-bottom: clamp(2rem, 4vw, 3.5rem);
+  isolation: isolate;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--cream) var(--hero-fade-solid), transparent) 0%,
+      color-mix(in srgb, var(--cream) var(--hero-fade-mid), transparent) 30%,
+      color-mix(in srgb, var(--cream) var(--hero-fade-soft), transparent) 52%,
+      transparent 72%
+    ),
+    url("/hero-bg.png") no-repeat center / cover;
 }
 
 .hero__layout {
+  position: relative;
+  z-index: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(
     12rem,
@@ -279,6 +304,17 @@ a:hover {
 }
 
 @media (max-width: 52rem) {
+  .hero::before {
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--cream) var(--hero-fade-solid), transparent) 0%,
+        color-mix(in srgb, var(--cream) var(--hero-fade-mid), transparent) 40%,
+        transparent 78%
+      ),
+      url("/hero-bg.png") no-repeat center top / cover;
+  }
+
   .hero__layout {
     grid-template-columns: 1fr;
     column-gap: 0;
