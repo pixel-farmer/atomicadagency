@@ -22,8 +22,8 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: 'Atomic',
-  description: 'Atomic',
+  title: 'Vaxion Studios',
+  description: 'Vaxion Studios',
 };
 
 export default function RootLayout({
