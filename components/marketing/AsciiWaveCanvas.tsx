@@ -4,8 +4,8 @@ import { useEffect, useRef } from 'react';
 
 const CHARSET =
   " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZQdpPqao*b#MW&8%B@$";
-const FG = '#ffa19c';
-const BG = '#000000';
+const FG = '#ffffff';
+const BG = '#bd5b5b';
 
 export function AsciiWaveCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);

@@ -9,7 +9,7 @@ export function VaxionHomeHero() {
       <AsciiWaveCanvas />
       <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-[clamp(1rem,4vw,2.5rem)]">
         <Image
-          src="/VaxionStudiosLogo-wh.svg"
+          src="/VaxionStudiosLogo.svg"
           alt="Vaxion Studios"
           width={1983}
           height={793}
