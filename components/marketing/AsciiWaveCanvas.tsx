@@ -4,8 +4,15 @@ import { useEffect, useRef } from 'react';
 
 const CHARSET =
   " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZQdpPqao*b#MW&8%B@$";
-const FG = '#ffffff';
+const FG = '#fc9797';
 const BG = '#bd5b5b';
+
+function viewportSize() {
+  return {
+    w: window.innerWidth,
+    h: window.innerHeight,
+  };
+}
 
 export function AsciiWaveCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -25,16 +32,21 @@ export function AsciiWaveCanvas() {
 
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio, 2);
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
+      const { w, h } = viewportSize();
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
       canvas.width = Math.floor(w * dpr);
       canvas.height = Math.floor(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
 
     const draw = () => {
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
+      const { w, h } = viewportSize();
+      if (w < 2 || h < 2) {
+        raf = requestAnimationFrame(draw);
+        return;
+      }
+
       const cx = w * 0.5;
       const cy = h * 0.5;
 
@@ -73,15 +85,12 @@ export function AsciiWaveCanvas() {
 
       if (!reducedMotion) {
         t += 0.014;
-        raf = requestAnimationFrame(draw);
       }
+      raf = requestAnimationFrame(draw);
     };
 
     const onMotionChange = (event: MediaQueryListEvent) => {
       reducedMotion = event.matches;
-      if (!reducedMotion && !raf) {
-        raf = requestAnimationFrame(draw);
-      }
     };
 
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -101,7 +110,7 @@ export function AsciiWaveCanvas() {
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 h-full w-full"
+      className="pointer-events-none fixed inset-0 block"
       aria-hidden
     />
   );
