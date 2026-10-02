@@ -2,6 +2,7 @@
 
 import { useThree } from '@react-three/fiber';
 import { useLayoutEffect } from 'react';
+import { BlackWaterKoiFish } from '@/components/assists/black-water-koi/BlackWaterKoiFish';
 import { BlackWaterSurface } from '@/components/assists/black-water-koi/BlackWaterSurface';
 
 /** ~25° from vertical — almost top-down, tilted toward +Z */
@@ -22,11 +23,12 @@ export function BlackWaterKoiScene() {
   return (
     <>
       <SceneCamera />
-      <color attach="background" args={['#5a5a5a']} />
+      <color attach="background" args={['#000000']} />
       <fog attach="fog" args={['#5a5a5a', 16, 30]} />
       <ambientLight intensity={0.08} />
-      <directionalLight position={[-4, 9, 3]} intensity={0.55} color="#c8d4e8" />
+      <directionalLight position={[-4, 9, 3]} intensity={0.55} color="#b2d9f5" />
       <directionalLight position={[3, 6, -2]} intensity={0.12} color="#405060" />
+      <BlackWaterKoiFish />
       <BlackWaterSurface />
       
     </>

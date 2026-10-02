@@ -38,6 +38,8 @@ export function BlackWaterSurface() {
     return new THREE.ShaderMaterial({
       vertexShader: blackWaterVertexShader,
       fragmentShader: blackWaterFragmentShader,
+      transparent: true,
+      depthWrite: false,
       uniforms: {
         uTime: { value: 0 },
         uRipples: {
@@ -82,7 +84,7 @@ export function BlackWaterSurface() {
   });
 
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} material={material}>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} material={material} renderOrder={2}>
       <planeGeometry args={[PLANE_SIZE, PLANE_SIZE, PLANE_SEGMENTS, PLANE_SEGMENTS]} />
     </mesh>
   );
