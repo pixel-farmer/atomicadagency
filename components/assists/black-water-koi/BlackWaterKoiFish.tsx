@@ -15,10 +15,14 @@ const SWIM_DEPTH = 0.62;
 
 const POND_HALF = 5;
 const WAYPOINT_ARRIVE = 0.45;
-const MIN_WAYPOINT_DIST = 1.35;
+const MIN_WAYPOINT_DIST = 1.5;
 /** Max turn rate (radians / sec) toward waypoint heading. */
 const TURN_RATE = 0.50;
 const BASE_SWIM_SPEED = 0.48;
+const MIN_SWIM_SPEED = 0.18;
+/** Below this distance to waypoint, pick a new target (avoids atan2(0,0) stall). */
+const WAYPOINT_EPS = 0.12;
+const EDGE_INSET = 0.85;
 
 /**
  * GLB body axis is Blender +X (head–tail). Three.js default forward is −Z.
@@ -106,6 +110,7 @@ export function BlackWaterKoiFish() {
   const targetSwimSpeed = useRef(BASE_SWIM_SPEED);
   const movementReady = useRef(false);
   const nextSpeedChangeAt = useRef(0);
+  const stuckFrames = useRef(0);
 
   const { scale, depthOffset } = useMemo(() => {
     const s = scaleToLength(scene, KOI_TARGET_LENGTH);
@@ -160,29 +165,51 @@ export function BlackWaterKoiFish() {
       targetSwimSpeed.current = BASE_SWIM_SPEED + (Math.random() - 0.5) * 0.14;
       nextSpeedChangeAt.current = t + 2.5 + Math.random() * 2.5;
     }
+    targetSwimSpeed.current = Math.max(MIN_SWIM_SPEED, targetSwimSpeed.current);
     swimSpeed.current = THREE.MathUtils.lerp(
       swimSpeed.current,
       targetSwimSpeed.current,
       Math.min(1, delta * 0.35),
     );
+    swimSpeed.current = Math.max(MIN_SWIM_SPEED, swimSpeed.current);
 
     const px = rig.position.x;
     const pz = rig.position.z;
+    const fx = Math.sin(heading.current);
+    const fz = Math.cos(heading.current);
+
     let toX = waypoint.current.x - px;
     let toZ = waypoint.current.z - pz;
     let dist = Math.hypot(toX, toZ);
 
-    if (dist < WAYPOINT_ARRIVE) {
-      const fx = Math.sin(heading.current);
-      const fz = Math.cos(heading.current);
+    const needNewWaypoint = dist < WAYPOINT_ARRIVE || dist < WAYPOINT_EPS;
+    if (needNewWaypoint) {
       waypoint.current.copy(pickWaypoint(rig.position, fx, fz));
       toX = waypoint.current.x - px;
       toZ = waypoint.current.z - pz;
       dist = Math.hypot(toX, toZ);
     }
 
-    const targetHeading = Math.atan2(toX, toZ);
-    const turnStep = Math.min(1, delta * TURN_RATE);
+    let targetHeading = dist > WAYPOINT_EPS ? Math.atan2(toX, toZ) : heading.current;
+
+    const limit = POND_HALF - EDGE_INSET;
+    const edgeTurn = Math.min(1, delta * TURN_RATE * 1.5);
+    if (Math.abs(px) > limit) {
+      targetHeading = lerpAngle(
+        targetHeading,
+        px > 0 ? -Math.PI / 2 : Math.PI / 2,
+        edgeTurn,
+      );
+    }
+    if (Math.abs(pz) > limit) {
+      targetHeading = lerpAngle(
+        targetHeading,
+        pz > 0 ? Math.PI : 0,
+        edgeTurn,
+      );
+    }
+
+    const turnStep = Math.min(0.35, delta * TURN_RATE);
     heading.current = lerpAngle(heading.current, targetHeading, turnStep);
 
     const step = swimSpeed.current * delta;
@@ -190,8 +217,33 @@ export function BlackWaterKoiFish() {
     rig.position.z += Math.cos(heading.current) * step;
     rig.position.y = swimY;
 
+    const beforeClampX = rig.position.x;
+    const beforeClampZ = rig.position.z;
     rig.position.x = THREE.MathUtils.clamp(rig.position.x, -POND_HALF, POND_HALF);
     rig.position.z = THREE.MathUtils.clamp(rig.position.z, -POND_HALF, POND_HALF);
+
+    const moved = Math.hypot(
+      rig.position.x - px,
+      rig.position.z - pz,
+    );
+    const clamped =
+      rig.position.x !== beforeClampX || rig.position.z !== beforeClampZ;
+
+    if (moved < step * 0.08 && step > 1e-5) {
+      stuckFrames.current += 1;
+    } else {
+      stuckFrames.current = 0;
+    }
+
+    if (stuckFrames.current > 8 || (clamped && moved < step * 0.15)) {
+      stuckFrames.current = 0;
+      targetSwimSpeed.current = BASE_SWIM_SPEED;
+      waypoint.current.set(
+        px * 0.35 + (Math.random() - 0.5) * 2,
+        swimY,
+        pz * 0.35 + (Math.random() - 0.5) * 2,
+      );
+    }
 
     rig.rotation.set(0, heading.current, 0);
   });
