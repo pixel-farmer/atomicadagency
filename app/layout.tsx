@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { DM_Sans, Outfit } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/react';
 import Script from 'next/script';
+import { SmoothScroll } from '@/components/marketing/SmoothScroll';
 import './globals.css';
 
 const GA_MEASUREMENT_ID =
@@ -34,7 +35,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${dmSans.variable} ${outfit.variable}`}>
       <body className="min-h-screen font-sans">
-        {children}
+        <SmoothScroll>{children}</SmoothScroll>
         <Script
           src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
           strategy="afterInteractive"

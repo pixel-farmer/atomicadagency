@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 import dynamic from 'next/dynamic';
 
+import { useLenis } from 'lenis/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 void import('@/components/assists/black-water-koi').then(() => undefined);
@@ -163,6 +164,7 @@ function AssistGrowingOverlay({
   const [sceneReady, setSceneReady] = useState(false);
   const [hideCircle, setHideCircle] = useState(false);
   const expandDone = useRef(false);
+  const lenis = useLenis();
 
   useEffect(() => {
     setSceneReady(false);
@@ -170,7 +172,12 @@ function AssistGrowingOverlay({
     expandDone.current = false;
   }, [assistIndex, origin.left, origin.top]);
 
-
+  useEffect(() => {
+    lenis?.stop();
+    return () => {
+      lenis?.start();
+    };
+  }, [lenis]);
 
   useEffect(() => {
 
