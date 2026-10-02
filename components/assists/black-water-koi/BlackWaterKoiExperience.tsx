@@ -13,6 +13,7 @@ export function BlackWaterKoiExperience() {
         cameraFov={42}
         dpr={[1, 1.75]}
         shadows={false}
+        transparent={false}
       >
         <BlackWaterKoiScene />
       </CanvasWrapper>

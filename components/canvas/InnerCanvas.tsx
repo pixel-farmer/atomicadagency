@@ -10,6 +10,8 @@ export type InnerCanvasProps = {
   cameraFov?: number;
   dpr?: number | [number, number];
   shadows?: boolean;
+  /** When false (default), canvas clears opaque black — required for full-screen assists. */
+  transparent?: boolean;
 };
 
 export function InnerCanvas({
@@ -19,6 +21,7 @@ export function InnerCanvas({
   cameraFov = 45,
   dpr = [1, 2],
   shadows = false,
+  transparent = true,
 }: InnerCanvasProps) {
   return (
     <Canvas
@@ -26,9 +29,9 @@ export function InnerCanvas({
       shadows={shadows}
       dpr={dpr}
       camera={{ position: cameraPosition, fov: cameraFov }}
-      gl={{ antialias: true, alpha: true }}
+      gl={{ antialias: true, alpha: transparent }}
       onCreated={({ gl }) => {
-        gl.setClearColor(0x000000, 0);
+        gl.setClearColor(0x000000, transparent ? 0 : 1);
       }}
     >
       {children}

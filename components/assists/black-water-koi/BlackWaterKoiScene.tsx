@@ -1,7 +1,7 @@
 'use client';
 
 import { useThree } from '@react-three/fiber';
-import { useLayoutEffect } from 'react';
+import { Suspense, useLayoutEffect } from 'react';
 import { BlackWaterKoiFish } from '@/components/assists/black-water-koi/BlackWaterKoiFish';
 import { BlackWaterSurface } from '@/components/assists/black-water-koi/BlackWaterSurface';
 
@@ -28,9 +28,10 @@ export function BlackWaterKoiScene() {
       <ambientLight intensity={0.08} />
       <directionalLight position={[-4, 9, 3]} intensity={0.55} color="#b2d9f5" />
       <directionalLight position={[3, 6, -2]} intensity={0.12} color="#405060" />
-      <BlackWaterKoiFish />
       <BlackWaterSurface />
-      
+      <Suspense fallback={null}>
+        <BlackWaterKoiFish />
+      </Suspense>
     </>
   );
 }

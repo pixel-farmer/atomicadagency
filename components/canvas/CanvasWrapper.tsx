@@ -24,6 +24,7 @@ export type CanvasWrapperProps = {
   cameraFov?: InnerCanvasProps['cameraFov'];
   dpr?: InnerCanvasProps['dpr'];
   shadows?: InnerCanvasProps['shadows'];
+  transparent?: InnerCanvasProps['transparent'];
 };
 
 const defaultProps = {
@@ -43,6 +44,7 @@ export function CanvasWrapper({
   cameraFov = defaultProps.cameraFov,
   dpr = defaultProps.dpr,
   shadows = defaultProps.shadows,
+  transparent = true,
 }: CanvasWrapperProps) {
   return (
     <div className={wrapperClassName}>
@@ -52,6 +54,7 @@ export function CanvasWrapper({
         cameraFov={cameraFov}
         dpr={dpr}
         shadows={shadows}
+        transparent={transparent}
       >
         {children}
       </DynamicInnerCanvas>

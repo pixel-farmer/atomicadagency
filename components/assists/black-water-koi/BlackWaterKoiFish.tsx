@@ -6,7 +6,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { Box3, Group, Object3D, Vector3 } from 'three';
 
-const KOI_PATH = '/koi_fish_bw.glb';
+const KOI_PATH = '/koi_fish_ow.glb';
 /** Target body length in world units (water plane is 24). */
 const KOI_TARGET_LENGTH = 2.8;
 /** World Y of the water surface (matches flat water plane). */
@@ -17,7 +17,7 @@ const POND_HALF = 5;
 const WAYPOINT_ARRIVE = 0.45;
 const MIN_WAYPOINT_DIST = 1.5;
 /** Max turn rate (radians / sec) toward waypoint heading. */
-const TURN_RATE = 0.50;
+const TURN_RATE = 0.45;
 const BASE_SWIM_SPEED = 0.48;
 const MIN_SWIM_SPEED = 0.18;
 /** Below this distance to waypoint, pick a new target (avoids atan2(0,0) stall). */
