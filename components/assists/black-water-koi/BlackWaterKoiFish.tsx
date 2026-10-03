@@ -1,10 +1,11 @@
 'use client';
 
-import { Clone, useAnimations, useGLTF } from '@react-three/drei';
+import { useAnimations, useGLTF } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { Box3, Group, Object3D, Vector3 } from 'three';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 const KOI_PATH = '/koi_fish_ow.glb';
 /** Target body length in world units (water plane is 24). */
@@ -39,21 +40,51 @@ function scaleToLength(root: Object3D, targetLength: number) {
   return targetLength / longest;
 }
 
-function applyUnderwaterMaterial(root: Object3D) {
+/** Underwater look without tinting away albedo when a diffuse map is present. */
+function tuneUnderwaterMaterial(mat: THREE.Material) {
+  if (mat instanceof THREE.MeshStandardMaterial) {
+    if (mat.map) {
+      mat.color.setRGB(1, 1, 1);
+    } else {
+      mat.color.setRGB(0.12, 0.13, 0.17);
+    }
+    mat.emissive.setRGB(0.015, 0.02, 0.03);
+    mat.metalness = 0.08;
+    mat.roughness = 0.92;
+    mat.needsUpdate = true;
+    return;
+  }
+  if (mat instanceof THREE.MeshBasicMaterial) {
+    if (mat.map) {
+      mat.color.setRGB(1, 1, 1);
+    } else {
+      mat.color.setRGB(0.14, 0.15, 0.19);
+    }
+    mat.needsUpdate = true;
+  }
+}
+
+function cloneAndTuneMaterial(source: THREE.Material) {
+  const mat = source.clone();
+  tuneUnderwaterMaterial(mat);
+  return mat;
+}
+
+/**
+ * Skinned clone with unique materials so unmount dispose never strips maps from
+ * the shared useGLTF cache (Clone + deep still shares materials by default).
+ */
+function cloneKoiForScene(source: Object3D) {
+  const root = SkeletonUtils.clone(source) as Object3D;
   root.traverse((obj) => {
     if (!(obj instanceof THREE.Mesh)) return;
-    const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
-    for (const mat of materials) {
-      if (mat instanceof THREE.MeshStandardMaterial) {
-        mat.color.setRGB(0.12, 0.13, 0.17);
-        mat.emissive.setRGB(0.015, 0.02, 0.03);
-        mat.metalness = 0.08;
-        mat.roughness = 0.92;
-      } else if (mat instanceof THREE.MeshBasicMaterial) {
-        mat.color.setRGB(0.14, 0.15, 0.19);
-      }
+    if (Array.isArray(obj.material)) {
+      obj.material = obj.material.map((m) => cloneAndTuneMaterial(m));
+    } else if (obj.material) {
+      obj.material = cloneAndTuneMaterial(obj.material);
     }
   });
+  return root;
 }
 
 function pickSwimAction(actions: Record<string, THREE.AnimationAction | null | undefined>) {
@@ -112,19 +143,19 @@ export function BlackWaterKoiFish() {
   const nextSpeedChangeAt = useRef(0);
   const stuckFrames = useRef(0);
 
-  const { scale, depthOffset } = useMemo(() => {
+  const { scale, depthOffset, koiModel } = useMemo(() => {
     const s = scaleToLength(scene, KOI_TARGET_LENGTH);
     const box = new Box3().setFromObject(scene);
     const center = new Vector3();
     box.getCenter(center);
-    return { scale: s, depthOffset: -center.y * s };
+    return {
+      scale: s,
+      depthOffset: -center.y * s,
+      koiModel: cloneKoiForScene(scene),
+    };
   }, [scene]);
 
   const { actions } = useAnimations(animations, rigRef);
-
-  useLayoutEffect(() => {
-    applyUnderwaterMaterial(scene);
-  }, [scene]);
 
   useLayoutEffect(() => {
     const swim = pickSwimAction(actions);
@@ -251,7 +282,7 @@ export function BlackWaterKoiFish() {
   return (
     <group ref={rigRef} renderOrder={0}>
       <group rotation={PIVOT_ORIENTATION}>
-        <Clone object={scene} deep scale={scale} />
+        <primitive object={koiModel} scale={scale} />
       </group>
     </group>
   );

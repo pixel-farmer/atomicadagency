@@ -161,14 +161,19 @@ function AssistGrowingOverlay({
 
   const endScale = scaleToCoverViewport(origin);
 
+  const [phase, setPhase] = useState<'entering' | 'open' | 'exiting'>('entering');
   const [sceneReady, setSceneReady] = useState(false);
-  const [hideCircle, setHideCircle] = useState(false);
   const expandDone = useRef(false);
   const lenis = useLenis();
 
-  useEffect(() => {
+  const requestClose = useCallback(() => {
+    setPhase((p) => (p === 'exiting' ? p : 'exiting'));
     setSceneReady(false);
-    setHideCircle(false);
+  }, []);
+
+  useEffect(() => {
+    setPhase('entering');
+    setSceneReady(false);
     expandDone.current = false;
   }, [assistIndex, origin.left, origin.top]);
 
@@ -187,7 +192,7 @@ function AssistGrowingOverlay({
 
     const onKey = (e: KeyboardEvent) => {
 
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') requestClose();
 
     };
 
@@ -201,30 +206,17 @@ function AssistGrowingOverlay({
 
     };
 
-  }, [onClose]);
-
-
+  }, [requestClose]);
 
   const showBlackWaterKoi = assistIndex === 0 && sceneReady;
-
-  useEffect(() => {
-    if (!sceneReady) return;
-
-    if (assistIndex === 0) {
-      const id = requestAnimationFrame(() => {
-        requestAnimationFrame(() => setHideCircle(true));
-      });
-      return () => cancelAnimationFrame(id);
-    }
-
-    setHideCircle(true);
-  }, [sceneReady, assistIndex]);
+  const circleHidden = phase === 'open';
+  const circleScale = phase === 'exiting' ? 1 : endScale;
 
   return (
 
     <motion.div
 
-      className={`fixed inset-0 z-[100] overflow-hidden ${sceneReady ? 'bg-black' : 'bg-transparent'}`}
+      className={`fixed inset-0 z-[100] overflow-hidden ${sceneReady && phase === 'open' ? 'bg-black' : 'bg-transparent'}`}
 
       role="dialog"
 
@@ -252,7 +244,7 @@ function AssistGrowingOverlay({
 
       <motion.div
 
-        className={`pointer-events-none absolute z-[6] rounded-full bg-black ${hideCircle ? 'invisible opacity-0' : 'opacity-100'}`}
+        className={`pointer-events-none absolute z-[6] rounded-full bg-black ${circleHidden ? 'invisible opacity-0' : 'opacity-100'}`}
 
         style={{
 
@@ -268,16 +260,25 @@ function AssistGrowingOverlay({
 
         initial={{ scale: 1, x: '-50%', y: '-50%' }}
 
-        animate={{ scale: endScale, x: '-50%', y: '-50%' }}
-
-        exit={{ scale: 1, x: '-50%', y: '-50%' }}
+        animate={{ scale: circleScale, x: '-50%', y: '-50%' }}
 
         transition={{ duration: EXPAND_MS, ease: EASE }}
 
         onAnimationComplete={() => {
-          if (expandDone.current) return;
+          if (phase === 'exiting') {
+            onClose();
+            return;
+          }
+          if (phase !== 'entering' || expandDone.current) return;
           expandDone.current = true;
           setSceneReady(true);
+          if (assistIndex === 0) {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => setPhase('open'));
+            });
+          } else {
+            setPhase('open');
+          }
         }}
 
       />
@@ -290,11 +291,12 @@ function AssistGrowingOverlay({
 
         initial={{ opacity: 0 }}
 
-        animate={{ opacity: 1 }}
+        animate={{ opacity: phase === 'exiting' ? 0 : phase === 'open' ? 1 : 0 }}
 
-        exit={{ opacity: 0 }}
-
-        transition={{ delay: EXPAND_MS * 0.45, duration: 0.25 }}
+        transition={{
+          delay: phase === 'open' ? 0 : phase === 'entering' ? EXPAND_MS * 0.45 : 0,
+          duration: phase === 'exiting' ? 0.12 : 0.25,
+        }}
 
       >
 
@@ -304,7 +306,7 @@ function AssistGrowingOverlay({
 
             type="button"
 
-            onClick={onClose}
+            onClick={requestClose}
 
             className="border border-white/90 bg-transparent px-10 py-2.5 font-sans text-xs font-extralight uppercase tracking-[0.35em] text-white transition hover:bg-white/5 focus:outline-none focus-visible:ring-1 focus-visible:ring-white"
 
