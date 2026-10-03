@@ -15,15 +15,37 @@ const WATER_Y = 0;
 const SWIM_DEPTH = 0.62;
 
 const POND_HALF = 5;
-const WAYPOINT_ARRIVE = 0.45;
-const MIN_WAYPOINT_DIST = 1.5;
-/** Max turn rate (radians / sec) toward waypoint heading. */
-const TURN_RATE = 0.45;
-const BASE_SWIM_SPEED = 0.48;
-const MIN_SWIM_SPEED = 0.18;
-/** Below this distance to waypoint, pick a new target (avoids atan2(0,0) stall). */
-const WAYPOINT_EPS = 0.12;
-const EDGE_INSET = 0.85;
+/** Waypoints stay inside POND_HALF - EDGE_INSET. */
+const EDGE_INSET = 1.2;
+/** Fish steers back toward the center beyond this distance from the origin (per axis). */
+const WALL_LIMIT = POND_HALF - 0.8;
+const WAYPOINT_ARRIVE = 0.6;
+const MIN_WAYPOINT_DIST = 2.0;
+
+/**
+ * Turning is speed-coupled: angular rate = speed / TURN_RADIUS, so the fish
+ * carves a fixed-radius arc instead of pivoting on the spot. Faster = quicker turn.
+ */
+const TURN_RADIUS = 1.5;
+/** Proportional steering gain (only matters for small heading errors). */
+const TURN_GAIN = 2.0;
+
+const BASE_SWIM_SPEED = 0.5;
+const MIN_SWIM_SPEED = 0.2;
+/** Extra forward speed at a full turn (1 = up to 2x cruise speed). */
+const TURN_SPEED_BOOST = 1.0;
+/** How fast the turn burst ramps up / relaxes (1/sec). */
+const BOOST_RISE = 3.0;
+const BOOST_FALL = 1.0;
+/** Tail-beat animation speed range, scaled with actual swim speed. */
+const ANIM_BASE_TIMESCALE = 0.85;
+const ANIM_MIN_TIMESCALE = 0.6;
+const ANIM_MAX_TIMESCALE = 2.0;
+
+/** Pick a new waypoint if distance hasn't improved for this long. */
+const NO_PROGRESS_SEC = 3.5;
+/** Pick a new waypoint if one has been chased for this long. */
+const WAYPOINT_TIMEOUT_SEC = 14;
 
 /**
  * GLB body axis is Blender +X (head–tail). Three.js default forward is −Z.
@@ -95,39 +117,44 @@ function pickSwimAction(actions: Record<string, THREE.AnimationAction | null | u
   return Object.values(actions).find(Boolean);
 }
 
-function lerpAngle(current: number, target: number, t: number) {
-  let delta = target - current;
-  while (delta > Math.PI) delta -= Math.PI * 2;
-  while (delta < -Math.PI) delta += Math.PI * 2;
-  return current + delta * t;
+/** Shortest signed angle from `current` to `target`, in (-π, π]. */
+function signedAngleDiff(current: number, target: number) {
+  let d = target - current;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return d;
 }
 
-function pickWaypoint(
-  from: Vector3,
-  forwardX: number,
-  forwardZ: number,
-): Vector3 {
-  for (let attempt = 0; attempt < 16; attempt++) {
-    const wx = (Math.random() * 2 - 1) * POND_HALF;
-    const wz = (Math.random() * 2 - 1) * POND_HALF;
-    const dx = wx - from.x;
-    const dz = wz - from.z;
-    const len = Math.hypot(dx, dz);
-    if (len < MIN_WAYPOINT_DIST) continue;
+/** True if the fish, heading `heading`, can reach (wx, wz) without orbiting it. */
+function isReachable(from: Vector3, heading: number, wx: number, wz: number) {
+  const dx = wx - from.x;
+  const dz = wz - from.z;
+  const fx = Math.sin(heading);
+  const fz = Math.cos(heading);
+  const forward = dx * fx + dz * fz;
+  const lateral = dx * fz - dz * fx;
+  const R = TURN_RADIUS;
+  // Turning circles are centered at (lateral = ±R, forward = 0)
+  for (const side of [-1, 1]) {
+    if (Math.hypot(lateral - side * R, forward) < R) return false;
+  }
+  return true;
+}
 
-    const ndx = dx / len;
-    const ndz = dz / len;
-    const dot = ndx * forwardX + ndz * forwardZ;
-    if (dot < -0.2) continue;
-
+function pickWaypoint(from: Vector3, heading: number): Vector3 {
+  const limit = POND_HALF - EDGE_INSET;
+  for (let i = 0; i < 40; i++) {
+    const wx = (Math.random() * 2 - 1) * limit;
+    const wz = (Math.random() * 2 - 1) * limit;
+    if (Math.hypot(wx - from.x, wz - from.z) < MIN_WAYPOINT_DIST) continue;
+    if (!isReachable(from, heading, wx, wz)) continue;
     return new Vector3(wx, from.y, wz);
   }
-
-  const angle = Math.random() * Math.PI * 2;
+  // Fallback: straight ahead, clamped inside the pond
   return new Vector3(
-    from.x + Math.sin(angle) * MIN_WAYPOINT_DIST,
+    THREE.MathUtils.clamp(from.x + Math.sin(heading) * 3, -limit, limit),
     from.y,
-    from.z + Math.cos(angle) * MIN_WAYPOINT_DIST,
+    THREE.MathUtils.clamp(from.z + Math.cos(heading) * 3, -limit, limit),
   );
 }
 
@@ -139,9 +166,13 @@ export function BlackWaterKoiFish() {
   const heading = useRef(0);
   const swimSpeed = useRef(BASE_SWIM_SPEED);
   const targetSwimSpeed = useRef(BASE_SWIM_SPEED);
+  const turnBoost = useRef(0);
   const movementReady = useRef(false);
   const nextSpeedChangeAt = useRef(0);
-  const stuckFrames = useRef(0);
+  const waypointSetAt = useRef(0);
+  const bestDist = useRef(Infinity);
+  const lastProgressAt = useRef(0);
+  const swimActionRef = useRef<THREE.AnimationAction | null>(null);
 
   const { scale, depthOffset, koiModel } = useMemo(() => {
     const s = scaleToLength(scene, KOI_TARGET_LENGTH);
@@ -162,9 +193,11 @@ export function BlackWaterKoiFish() {
     if (!swim) return;
 
     swim.reset().fadeIn(0.4).setLoop(THREE.LoopRepeat, Infinity).play();
-    swim.timeScale = 0.85;
+    swim.timeScale = ANIM_BASE_TIMESCALE;
+    swimActionRef.current = swim;
 
     return () => {
+      swimActionRef.current = null;
       swim.fadeOut(0.2);
       swim.stop();
     };
@@ -178,105 +211,110 @@ export function BlackWaterKoiFish() {
     heading.current = Math.random() * Math.PI * 2;
     rig.position.set(0, swimY, 0);
     rig.rotation.set(0, heading.current, 0);
-
-    const fx = Math.sin(heading.current);
-    const fz = Math.cos(heading.current);
-    waypoint.current.copy(pickWaypoint(rig.position, fx, fz));
+    waypoint.current.copy(pickWaypoint(rig.position, heading.current));
     movementReady.current = true;
   }, [depthOffset]);
 
   useFrame((state, delta) => {
     const rig = rigRef.current;
     if (!rig || !movementReady.current) return;
+    delta = Math.min(delta, 0.05); // avoid huge jumps after tab switches
 
     const t = state.clock.elapsedTime;
     const swimY = WATER_Y - SWIM_DEPTH + depthOffset + Math.sin(t * 0.75) * 0.06;
 
+    // Cruise-speed variation
     if (t >= nextSpeedChangeAt.current) {
-      targetSwimSpeed.current = BASE_SWIM_SPEED + (Math.random() - 0.5) * 0.14;
+      targetSwimSpeed.current = Math.max(
+        MIN_SWIM_SPEED,
+        BASE_SWIM_SPEED + (Math.random() - 0.5) * 0.14,
+      );
       nextSpeedChangeAt.current = t + 2.5 + Math.random() * 2.5;
     }
-    targetSwimSpeed.current = Math.max(MIN_SWIM_SPEED, targetSwimSpeed.current);
     swimSpeed.current = THREE.MathUtils.lerp(
       swimSpeed.current,
       targetSwimSpeed.current,
       Math.min(1, delta * 0.35),
     );
-    swimSpeed.current = Math.max(MIN_SWIM_SPEED, swimSpeed.current);
 
     const px = rig.position.x;
     const pz = rig.position.z;
-    const fx = Math.sin(heading.current);
-    const fz = Math.cos(heading.current);
+    let dist = Math.hypot(waypoint.current.x - px, waypoint.current.z - pz);
 
-    let toX = waypoint.current.x - px;
-    let toZ = waypoint.current.z - pz;
-    let dist = Math.hypot(toX, toZ);
-
-    const needNewWaypoint = dist < WAYPOINT_ARRIVE || dist < WAYPOINT_EPS;
-    if (needNewWaypoint) {
-      waypoint.current.copy(pickWaypoint(rig.position, fx, fz));
-      toX = waypoint.current.x - px;
-      toZ = waypoint.current.z - pz;
-      dist = Math.hypot(toX, toZ);
+    // Track progress toward the current waypoint
+    if (dist < bestDist.current - 0.05) {
+      bestDist.current = dist;
+      lastProgressAt.current = t;
     }
 
-    let targetHeading = dist > WAYPOINT_EPS ? Math.atan2(toX, toZ) : heading.current;
+    const arrived = dist < WAYPOINT_ARRIVE;
+    const noProgress = t - lastProgressAt.current > NO_PROGRESS_SEC;
+    const timedOut = t - waypointSetAt.current > WAYPOINT_TIMEOUT_SEC;
 
-    const limit = POND_HALF - EDGE_INSET;
-    const edgeTurn = Math.min(1, delta * TURN_RATE * 1.5);
-    if (Math.abs(px) > limit) {
-      targetHeading = lerpAngle(
-        targetHeading,
-        px > 0 ? -Math.PI / 2 : Math.PI / 2,
-        edgeTurn,
-      );
-    }
-    if (Math.abs(pz) > limit) {
-      targetHeading = lerpAngle(
-        targetHeading,
-        pz > 0 ? Math.PI : 0,
-        edgeTurn,
-      );
+    if (arrived || noProgress || timedOut) {
+      waypoint.current.copy(pickWaypoint(rig.position, heading.current));
+      waypointSetAt.current = t;
+      lastProgressAt.current = t;
+      dist = Math.hypot(waypoint.current.x - px, waypoint.current.z - pz);
+      bestDist.current = dist;
     }
 
-    const turnStep = Math.min(0.35, delta * TURN_RATE);
-    heading.current = lerpAngle(heading.current, targetHeading, turnStep);
-
-    const step = swimSpeed.current * delta;
-    rig.position.x += Math.sin(heading.current) * step;
-    rig.position.z += Math.cos(heading.current) * step;
-    rig.position.y = swimY;
-
-    const beforeClampX = rig.position.x;
-    const beforeClampZ = rig.position.z;
-    rig.position.x = THREE.MathUtils.clamp(rig.position.x, -POND_HALF, POND_HALF);
-    rig.position.z = THREE.MathUtils.clamp(rig.position.z, -POND_HALF, POND_HALF);
-
-    const moved = Math.hypot(
-      rig.position.x - px,
-      rig.position.z - pz,
+    // Target heading: toward waypoint, or toward center if too close to a wall
+    let targetHeading = Math.atan2(
+      waypoint.current.x - px,
+      waypoint.current.z - pz,
     );
-    const clamped =
-      rig.position.x !== beforeClampX || rig.position.z !== beforeClampZ;
-
-    if (moved < step * 0.08 && step > 1e-5) {
-      stuckFrames.current += 1;
-    } else {
-      stuckFrames.current = 0;
+    if (Math.abs(px) > WALL_LIMIT || Math.abs(pz) > WALL_LIMIT) {
+      targetHeading = Math.atan2(-px, -pz);
     }
 
-    if (stuckFrames.current > 8 || (clamped && moved < step * 0.15)) {
-      stuckFrames.current = 0;
-      targetSwimSpeed.current = BASE_SWIM_SPEED;
-      waypoint.current.set(
-        px * 0.35 + (Math.random() - 0.5) * 2,
-        swimY,
-        pz * 0.35 + (Math.random() - 0.5) * 2,
+    const err = signedAngleDiff(heading.current, targetHeading);
+
+    // Burst of speed while turning (fish kick harder through a turn).
+    // Smoothed so the speed ramps up fast and settles back gently.
+    const turnFactor = Math.min(1, Math.abs(err) / (Math.PI / 2));
+    const boostRate = turnFactor > turnBoost.current ? BOOST_RISE : BOOST_FALL;
+    turnBoost.current = THREE.MathUtils.lerp(
+      turnBoost.current,
+      turnFactor,
+      Math.min(1, delta * boostRate),
+    );
+
+    const speed = swimSpeed.current * (1 + TURN_SPEED_BOOST * turnBoost.current);
+
+    // Speed-coupled turn rate: fixed-radius arc, no pivoting in place
+    const maxTurnRate = speed / TURN_RADIUS;
+    const turn = THREE.MathUtils.clamp(err * TURN_GAIN, -maxTurnRate, maxTurnRate);
+    heading.current += turn * delta;
+
+    const step = speed * delta;
+    rig.position.x = THREE.MathUtils.clamp(
+      px + Math.sin(heading.current) * step,
+      -POND_HALF,
+      POND_HALF,
+    );
+    rig.position.z = THREE.MathUtils.clamp(
+      pz + Math.cos(heading.current) * step,
+      -POND_HALF,
+      POND_HALF,
+    );
+    rig.position.y = swimY;
+    rig.rotation.set(0, heading.current, 0);
+
+    // Tail beats faster when the fish swims faster
+    const swim = swimActionRef.current;
+    if (swim) {
+      const target = THREE.MathUtils.clamp(
+        ANIM_BASE_TIMESCALE * (speed / BASE_SWIM_SPEED),
+        ANIM_MIN_TIMESCALE,
+        ANIM_MAX_TIMESCALE,
+      );
+      swim.timeScale = THREE.MathUtils.lerp(
+        swim.timeScale,
+        target,
+        Math.min(1, delta * 4),
       );
     }
-
-    rig.rotation.set(0, heading.current, 0);
   });
 
   return (
