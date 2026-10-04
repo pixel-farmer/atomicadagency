@@ -31,7 +31,8 @@ const EXPAND_MS = 0.62;
 
 const EASE = [0.32, 0.72, 0, 1] as const;
 
-
+const BLACK_WATER_KOI_GUMROAD_URL =
+  'https://vaxionstudios.gumroad.com/l/blackwaterkoi';
 
 export type ThumbnailRect = {
 
@@ -300,22 +301,38 @@ function AssistGrowingOverlay({
 
       >
 
-        <div className="pointer-events-auto flex shrink-0 justify-center pt-[clamp(1.25rem,4vh,2.5rem)]">
+        <div
+          className={`pointer-events-auto flex shrink-0 gap-4 px-[clamp(1rem,4vw,2.5rem)] pt-[clamp(1.25rem,4vh,2.5rem)] sm:gap-6 ${
+            assistIndex === 0 && phase === 'open'
+              ? 'flex-col sm:flex-row sm:items-start sm:justify-between'
+              : 'justify-center'
+          }`}
+        >
+          {assistIndex === 0 && phase === 'open' ? (
+            <p className="max-w-lg font-sans text-[11px] font-light leading-relaxed text-white/75 sm:text-xs md:max-w-xl md:text-sm">
+              A drop-in, full-viewport 3D koi pond for Next.js and React Three Fiber:
+              dark shader water, rain ripples, and a configurable school of animated koi.
+              Built for landing pages, hero sections, and portfolio sites where you want
+              calm motion without a heavy video file.
+              <br />
+              <a
+                href={BLACK_WATER_KOI_GUMROAD_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-normal text-white underline decoration-white/35 underline-offset-[3px] transition hover:decoration-white/80"
+              >
+                Get Black Water Koi on Gumroad
+              </a>
+            </p>
+          ) : null}
 
           <button
-
             type="button"
-
             onClick={requestClose}
-
-            className="border border-white/90 bg-transparent px-10 py-2.5 font-sans text-xs font-extralight uppercase tracking-[0.35em] text-white transition hover:bg-white/5 focus:outline-none focus-visible:ring-1 focus-visible:ring-white"
-
+            className="shrink-0 self-end border border-white/90 bg-transparent px-10 py-2.5 font-sans text-xs font-extralight uppercase tracking-[0.35em] text-white transition hover:bg-white/5 focus:outline-none focus-visible:ring-1 focus-visible:ring-white sm:self-auto"
           >
-
             close
-
           </button>
-
         </div>
 
         <div className="min-h-0 flex-1" />
