@@ -90,11 +90,15 @@ function AssistThumbnail({
 
   label,
 
+  caption,
+
 }: {
 
   onSelect: (rect: ThumbnailRect) => void;
 
   label: string;
+
+  caption?: string;
 
 }) {
 
@@ -129,6 +133,12 @@ function AssistThumbnail({
     >
 
       <span className="block h-full w-full rounded-full bg-black shadow-[0_12px_40px_rgba(0,0,0,0.35),inset_0_0_0_1px_rgba(255,255,255,0.08)] transition duration-300 group-hover:shadow-[0_18px_48px_rgba(0,0,0,0.45),inset_0_0_0_1px_rgba(255,255,255,0.14)]" />
+
+      {caption ? (
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center px-[10%] text-center font-sans text-[13px] font-extralight uppercase leading-snug tracking-[0.16em] text-white sm:text-[14px] md:text-[15px]">
+          {caption}
+        </span>
+      ) : null}
 
     </button>
 
@@ -388,6 +398,8 @@ export function AssistShowcaseRow() {
               key={i}
 
               label={`Open assist preview ${i + 1}`}
+
+              caption={i === 0 ? 'BLACK WATER KOI' : undefined}
 
               onSelect={(rect) => setFocus({ index: i, rect })}
 
