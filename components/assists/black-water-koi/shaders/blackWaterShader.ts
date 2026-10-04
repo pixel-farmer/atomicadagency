@@ -131,11 +131,16 @@ float noiseAmount = (waterNoise - 1.5) * NOISE_STRENGTH;
 
 col *= 1.0 + noiseAmount;
 
-  float vignette = smoothstep(14.0, 4.0, length(vWorldPos.xz));
+  float dist = length(vWorldPos.xz);
+  float vignette = smoothstep(4.0, 14.0, dist);
   col *= mix(0.72, 1.0, vignette);
 
   float fresnel = pow(1.0 - max(dot(n, viewDir), 0.0), 2.8);
   float alpha = mix(0.55, 0.76, fresnel);
+
+  // Soft falloff before the mesh edge so wide FOV never shows a hard square cutoff.
+  const float PLANE_HALF = 28.0;
+  alpha *= 1.0 - smoothstep(PLANE_HALF - 6.0, PLANE_HALF - 0.25, dist);
 
   gl_FragColor = vec4(col, alpha);
 }

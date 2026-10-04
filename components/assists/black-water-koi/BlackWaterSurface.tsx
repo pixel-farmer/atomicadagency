@@ -9,7 +9,8 @@ import {
   MAX_RIPPLES,
 } from '@/components/assists/black-water-koi/shaders/blackWaterShader';
 
-const PLANE_SIZE = 24;
+/** Large enough that plane edges stay outside the frustum on ultrawide viewports. */
+export const PLANE_SIZE = 56;
 const PLANE_SEGMENTS = 1;
 
 type Ripple = {
@@ -19,8 +20,11 @@ type Ripple = {
   strength: number;
 };
 
+/** Visible swim area — rain stays here even though the mesh is larger for edge fade. */
+const RAIN_SPREAD = 7.2;
+
 function spawnRipple(ripples: Ripple[], t: number) {
-  const spread = PLANE_SIZE * 0.3;
+  const spread = RAIN_SPREAD;
   ripples.push({
     x: (Math.random() - 0.5) * spread * 2,
     z: (Math.random() - 0.5) * spread * 2,
@@ -59,13 +63,18 @@ export function BlackWaterSurface() {
     if (!bootstrapped.current) {
       bootstrapped.current = true;
       spawnRipple(ripplesRef.current, t);
-      nextRainAt.current = t + 0.25;
+      spawnRipple(ripplesRef.current, t);
+      nextRainAt.current = t + 0.18;
     }
 
     const living = ripplesRef.current.filter((r) => t - r.startTime < 5.0);
-    if (t >= nextRainAt.current && living.length < 6) {
-      nextRainAt.current = t + 0.35 + Math.random() * 0.85;
+    const maxLiving = 9;
+    if (t >= nextRainAt.current && living.length < maxLiving) {
+      nextRainAt.current = t + 0.2 + Math.random() * 0.55;
       spawnRipple(ripplesRef.current, t);
+      if (Math.random() < 0.28 && living.length + 1 < maxLiving) {
+        spawnRipple(ripplesRef.current, t);
+      }
     }
 
     ripplesRef.current = ripplesRef.current

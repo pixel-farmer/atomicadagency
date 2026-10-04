@@ -24,7 +24,7 @@ export function BlackWaterKoiScene() {
     <>
       <SceneCamera />
       <color attach="background" args={['#000000']} />
-      <fog attach="fog" args={['#5a5a5a', 16, 30]} />
+      <fog attach="fog" args={['#000000', 16, 30]} />
       <ambientLight intensity={0.08} />
       <directionalLight position={[-4, 9, 3]} intensity={0.55} color="#b2d9f5" />
       <directionalLight position={[3, 6, -2]} intensity={0.12} color="#405060" />

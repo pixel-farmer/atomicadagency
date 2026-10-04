@@ -17,7 +17,7 @@ import {
 } from '@/components/assists/black-water-koi/koiSchoolPositions';
 
 const KOI_PATH = '/koi_fish_ow.glb';
-/** Target body length in world units (water plane is 24). */
+/** Target body length in world units. */
 const KOI_TARGET_LENGTH = 2.8;
 const WATER_Y = 0;
 /** Fallback when a school entry omits `swimDepth`. */
