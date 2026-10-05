@@ -432,7 +432,7 @@ export function AssistShowcaseRow() {
               label={`Open assist preview ${i + 1}`}
 
               caption={
-                i === 0 ? 'BLACK WATER KOI' : i === 1 ? 'ROLLING SHORE' : undefined
+                i === 0 ? 'BLACK WATER KOI' : i === 1 ? 'OCEAN WAVES' : undefined
               }
 
               onSelect={(rect) => setFocus({ index: i, rect })}
