@@ -10,12 +10,23 @@ import { useLenis } from 'lenis/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 void import('@/components/assists/black-water-koi').then(() => undefined);
+void import('@/components/assists/rolling-shore').then(() => undefined);
 
 const BlackWaterKoiExperience = dynamic(
 
   () =>
 
     import('@/components/assists/black-water-koi').then((m) => m.BlackWaterKoiExperience),
+
+  { ssr: false },
+
+);
+
+const RollingShoreExperience = dynamic(
+
+  () =>
+
+    import('@/components/assists/rolling-shore').then((m) => m.RollingShoreExperience),
 
   { ssr: false },
 
@@ -220,14 +231,21 @@ function AssistGrowingOverlay({
   }, [requestClose]);
 
   const showBlackWaterKoi = assistIndex === 0 && sceneReady;
+  const showRollingShore = assistIndex === 1 && sceneReady;
   const circleHidden = phase === 'open';
   const circleScale = phase === 'exiting' ? 1 : endScale;
+  const overlayOpenBg =
+    sceneReady && phase === 'open'
+      ? assistIndex === 1
+        ? 'bg-[#5c5668]'
+        : 'bg-black'
+      : 'bg-transparent';
 
   return (
 
     <motion.div
 
-      className={`fixed inset-0 z-[100] overflow-hidden ${sceneReady && phase === 'open' ? 'bg-black' : 'bg-transparent'}`}
+      className={`fixed inset-0 z-[100] overflow-hidden ${overlayOpenBg}`}
 
       role="dialog"
 
@@ -246,6 +264,16 @@ function AssistGrowingOverlay({
         <div className="absolute inset-0 z-[1]">
 
           <BlackWaterKoiExperience />
+
+        </div>
+
+      ) : null}
+
+      {showRollingShore ? (
+
+        <div className="absolute inset-0 z-[1]">
+
+          <RollingShoreExperience />
 
         </div>
 
@@ -283,7 +311,7 @@ function AssistGrowingOverlay({
           if (phase !== 'entering' || expandDone.current) return;
           expandDone.current = true;
           setSceneReady(true);
-          if (assistIndex === 0) {
+          if (assistIndex === 0 || assistIndex === 1) {
             requestAnimationFrame(() => {
               requestAnimationFrame(() => setPhase('open'));
             });
@@ -339,7 +367,11 @@ function AssistGrowingOverlay({
           <button
             type="button"
             onClick={requestClose}
-            className="shrink-0 self-end border border-white/90 bg-transparent px-10 py-2.5 font-sans text-xs font-extralight uppercase tracking-[0.35em] text-white transition hover:bg-white/5 focus:outline-none focus-visible:ring-1 focus-visible:ring-white sm:self-auto"
+            className={`shrink-0 self-end bg-transparent px-10 py-2.5 font-sans text-xs font-extralight uppercase tracking-[0.35em] transition focus:outline-none focus-visible:ring-1 sm:self-auto ${
+              assistIndex === 1 && phase === 'open'
+                ? 'border border-[#525252] text-[#404040] hover:bg-black/[0.06] focus-visible:ring-[#525252]'
+                : 'border border-white/90 text-white hover:bg-white/5 focus-visible:ring-white'
+            }`}
           >
             close
           </button>
@@ -399,7 +431,9 @@ export function AssistShowcaseRow() {
 
               label={`Open assist preview ${i + 1}`}
 
-              caption={i === 0 ? 'BLACK WATER KOI' : undefined}
+              caption={
+                i === 0 ? 'BLACK WATER KOI' : i === 1 ? 'ROLLING SHORE' : undefined
+              }
 
               onSelect={(rect) => setFocus({ index: i, rect })}
 
