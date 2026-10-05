@@ -2,13 +2,15 @@
 
 import { useTexture } from '@react-three/drei';
 import { CanvasWrapper } from '@/components/canvas';
+import { OceanWavesSoundToggle } from '@/components/assists/rolling-shore/OceanWavesSoundToggle';
 import { RollingShoreScene } from '@/components/assists/rolling-shore/RollingShoreScene';
 
 useTexture.preload('/sand03-seamless.png');
 
 export function RollingShoreExperience() {
   return (
-    <div className="h-full w-full bg-[#5c5668]">
+    <div className="relative h-full w-full bg-[#5c5668]">
+      <OceanWavesSoundToggle />
       <CanvasWrapper
         wrapperClassName="relative h-full w-full"
         canvasClassName="h-full w-full touch-none"

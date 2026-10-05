@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 void import('@/components/assists/black-water-koi').then(() => undefined);
 void import('@/components/assists/rolling-shore').then(() => undefined);
+void import('@/components/assists/starfield').then(() => undefined);
 
 const BlackWaterKoiExperience = dynamic(
 
@@ -27,6 +28,16 @@ const RollingShoreExperience = dynamic(
   () =>
 
     import('@/components/assists/rolling-shore').then((m) => m.RollingShoreExperience),
+
+  { ssr: false },
+
+);
+
+const StarfieldExperience = dynamic(
+
+  () =>
+
+    import('@/components/assists/starfield').then((m) => m.StarfieldExperience),
 
   { ssr: false },
 
@@ -232,13 +243,16 @@ function AssistGrowingOverlay({
 
   const showBlackWaterKoi = assistIndex === 0 && sceneReady;
   const showRollingShore = assistIndex === 1 && sceneReady;
+  const showStarfield = assistIndex === 2 && sceneReady;
   const circleHidden = phase === 'open';
   const circleScale = phase === 'exiting' ? 1 : endScale;
   const overlayOpenBg =
     sceneReady && phase === 'open'
       ? assistIndex === 1
         ? 'bg-[#5c5668]'
-        : 'bg-black'
+        : assistIndex === 2
+          ? 'bg-[#03040c]'
+          : 'bg-black'
       : 'bg-transparent';
 
   return (
@@ -279,6 +293,16 @@ function AssistGrowingOverlay({
 
       ) : null}
 
+      {showStarfield ? (
+
+        <div className="absolute inset-0 z-[1]">
+
+          <StarfieldExperience />
+
+        </div>
+
+      ) : null}
+
 
 
       <motion.div
@@ -311,7 +335,7 @@ function AssistGrowingOverlay({
           if (phase !== 'entering' || expandDone.current) return;
           expandDone.current = true;
           setSceneReady(true);
-          if (assistIndex === 0 || assistIndex === 1) {
+          if (assistIndex === 0 || assistIndex === 1 || assistIndex === 2) {
             requestAnimationFrame(() => {
               requestAnimationFrame(() => setPhase('open'));
             });
@@ -340,14 +364,14 @@ function AssistGrowingOverlay({
       >
 
         <div
-          className={`pointer-events-auto flex shrink-0 gap-4 px-[clamp(1rem,4vw,2.5rem)] pt-[clamp(1.25rem,4vh,2.5rem)] sm:gap-6 ${
+          className={`pointer-events-none flex shrink-0 gap-4 px-[clamp(1rem,4vw,2.5rem)] pt-[clamp(1.25rem,4vh,2.5rem)] sm:gap-6 ${
             assistIndex === 0 && phase === 'open'
               ? 'flex-col sm:flex-row sm:items-start sm:justify-between'
-              : 'justify-center'
+              : 'justify-end'
           }`}
         >
           {assistIndex === 0 && phase === 'open' ? (
-            <p className="max-w-lg font-sans text-[11px] font-light leading-relaxed text-white/75 sm:text-xs md:max-w-xl md:text-sm">
+            <p className="pointer-events-auto max-w-lg font-sans text-[11px] font-light leading-relaxed text-white/75 sm:text-xs md:max-w-xl md:text-sm">
               A drop-in, full-viewport 3D koi pond for Next.js and React Three Fiber:
               dark shader water, rain ripples, and a configurable school of animated koi.
               Built for landing pages, hero sections, and portfolio sites where you want
@@ -367,7 +391,7 @@ function AssistGrowingOverlay({
           <button
             type="button"
             onClick={requestClose}
-            className={`shrink-0 self-end bg-transparent px-10 py-2.5 font-sans text-xs font-extralight uppercase tracking-[0.35em] transition focus:outline-none focus-visible:ring-1 sm:self-auto ${
+            className={`pointer-events-auto shrink-0 self-end bg-transparent px-10 py-2.5 font-sans text-xs font-extralight uppercase tracking-[0.35em] transition focus:outline-none focus-visible:ring-1 sm:self-auto ${
               assistIndex === 1 && phase === 'open'
                 ? 'border border-[#525252] text-[#404040] hover:bg-black/[0.06] focus-visible:ring-[#525252]'
                 : 'border border-white/90 text-white hover:bg-white/5 focus-visible:ring-white'
@@ -432,7 +456,13 @@ export function AssistShowcaseRow() {
               label={`Open assist preview ${i + 1}`}
 
               caption={
-                i === 0 ? 'BLACK WATER KOI' : i === 1 ? 'OCEAN WAVES' : undefined
+                i === 0
+                  ? 'BLACK WATER KOI'
+                  : i === 1
+                    ? 'OCEAN WAVES'
+                    : i === 2
+                      ? 'STARFIELD'
+                      : undefined
               }
 
               onSelect={(rect) => setFocus({ index: i, rect })}
