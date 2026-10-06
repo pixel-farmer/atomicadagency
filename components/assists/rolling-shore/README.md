@@ -12,6 +12,10 @@ export default function Page() {
 }
 ```
 
+## Config
+
+`rollingShoreConfig.ts` — set `soundButtonEnabled: false` to hide the mic toggle and skip wave audio UI.
+
 ## Tuning
 
 - **Waves:** `shaders/rollingShoreShader.ts` — `waveHeight()` frequencies and shore mask.
@@ -19,3 +23,5 @@ export default function Page() {
 - **Palette:** sky uniforms on `RollingShoreSurface` + `RollingShoreSky`.
 
 Homepage showcase: second round assist (`assistIndex === 1`).
+
+Gumroad: `npm run package:ocean` → `gumroad/ocean-waves-bundle/` (+ zip). License source: `gumroad/OCEAN-WAVES-LICENSE.md`.

@@ -56,6 +56,9 @@ const EASE = [0.32, 0.72, 0, 1] as const;
 const BLACK_WATER_KOI_GUMROAD_URL =
   'https://vaxionstudios.gumroad.com/l/blackwaterkoi';
 
+const OCEAN_WAVES_GUMROAD_URL =
+  'https://vaxionstudios.gumroad.com/l/oceanwaves';
+
 export type ThumbnailRect = {
 
   left: number;
@@ -365,13 +368,13 @@ function AssistGrowingOverlay({
 
         <div
           className={`pointer-events-none flex shrink-0 gap-4 px-[clamp(1rem,4vw,2.5rem)] pt-[clamp(1.25rem,4vh,2.5rem)] sm:gap-6 ${
-            assistIndex === 0 && phase === 'open'
+            (assistIndex === 0 || assistIndex === 1) && phase === 'open'
               ? 'flex-col sm:flex-row sm:items-start sm:justify-between'
               : 'justify-end'
           }`}
         >
           {assistIndex === 0 && phase === 'open' ? (
-            <p className="pointer-events-auto max-w-lg font-sans text-[11px] font-light leading-relaxed text-white/75 sm:text-xs md:max-w-xl md:text-sm">
+            <p className="pointer-events-auto max-w-lg font-display text-[11px] font-normal leading-relaxed text-white/75 sm:text-xs md:max-w-xl md:text-sm">
               A drop-in, full-viewport 3D koi pond for Next.js and React Three Fiber:
               dark shader water, rain ripples, and a configurable school of animated koi.
               Built for landing pages, hero sections, and portfolio sites where you want
@@ -384,6 +387,24 @@ function AssistGrowingOverlay({
                 className="font-normal text-white underline decoration-white/35 underline-offset-[3px] transition hover:decoration-white/80"
               >
                 Get Black Water Koi on Gumroad
+              </a>
+            </p>
+          ) : null}
+
+          {assistIndex === 1 && phase === 'open' ? (
+            <p className="pointer-events-auto max-w-lg font-display text-[11px] font-normal leading-relaxed text-[#404040]/90 sm:text-xs md:max-w-xl md:text-sm">
+              A drop-in, full-viewport moody shore for Next.js and React Three Fiber:
+              shader rolling swells, tiled sand, soft sky, and optional looped wave audio
+              with a mic toggle you can hide in config. Built for hero sections and
+              landing pages without a heavy video file.
+              <br />
+              <a
+                href={OCEAN_WAVES_GUMROAD_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-normal text-[#2a2a2a] underline decoration-[#525252]/45 underline-offset-[3px] transition hover:decoration-[#525252]/85"
+              >
+                Get Ocean Waves on Gumroad
               </a>
             </p>
           ) : null}

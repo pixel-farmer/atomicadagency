@@ -91,7 +91,7 @@ export function OceanWavesSoundToggle() {
     <button
       type="button"
       onClick={() => setSoundOn((on) => !on)}
-      className="pointer-events-auto absolute bottom-[clamp(1.25rem,4vh,2.5rem)] right-[clamp(1rem,4vw,2.5rem)] z-20 flex h-10 w-10 items-center justify-center rounded-full border border-[#2a2a2a] bg-white/70 shadow-sm transition hover:bg-white/85 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#2a2a2a]/35 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+      className="pointer-events-auto absolute left-[clamp(1rem,4vw,2.5rem)] top-[clamp(1.25rem,4vh,2.5rem)] z-20 flex h-10 w-10 items-center justify-center rounded-full border border-[#2a2a2a] bg-white/70 shadow-sm transition hover:bg-white/85 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#2a2a2a]/35 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
       aria-pressed={soundOn}
       aria-label={soundOn ? 'Turn off ocean sound' : 'Turn on ocean sound'}
     >

@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
-    "package:koi": "node scripts/package-black-water-koi.mjs"
+    "package:koi": "node scripts/package-black-water-koi.mjs",
+    "package:ocean": "node scripts/package-ocean-waves.mjs"
   },
   "dependencies": {
     "@babel/runtime": "^8.0.5",
