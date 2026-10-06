@@ -628,8 +628,12 @@ const css = `
 .sf-field select {
   padding: 8px 8px; border-radius: 0;
   border: 1px solid rgba(255,255,255,0.35);
-  background: transparent; color: rgba(255,255,255,0.9); font: inherit;
+  background: rgba(0,0,0,0.5); color: rgba(255,255,255,0.9); font: inherit;
   letter-spacing: 0.12em; text-transform: none;
+}
+.sf-field select option {
+  background: #0a0a0a;
+  color: rgba(255,255,255,0.95);
 }
 .sf-field input[type="range"] { width: 100%; accent-color: rgba(255,255,255,0.85); }
 .sf-check {
