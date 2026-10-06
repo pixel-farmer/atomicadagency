@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const OCEAN_WAVES_SRC = '/ocean-waves.mp3';
+const RAIN_AUDIO_SRC = '/raining.mp3';
 
 function MicOnIcon() {
   return (
@@ -13,17 +13,18 @@ function MicOnIcon() {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
+      className="text-white"
     >
       <path
         d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Z"
-        stroke="#1a1a1a"
+        stroke="currentColor"
         strokeWidth="1.15"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
         d="M19 11a7 7 0 0 1-14 0M12 18v3"
-        stroke="#1a1a1a"
+        stroke="currentColor"
         strokeWidth="1.15"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -41,17 +42,18 @@ function MicOffIcon() {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
+      className="text-white"
     >
       <path
         d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9V6a3 3 0 0 0-5.66-1.34"
-        stroke="#1a1a1a"
+        stroke="currentColor"
         strokeWidth="1.15"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
         d="M19 11a7 7 0 0 1-2.16 4.12M5 11a7 7 0 0 0 11.5 5.4M12 18v3M3 3l18 18"
-        stroke="#1a1a1a"
+        stroke="currentColor"
         strokeWidth="1.15"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -60,12 +62,12 @@ function MicOffIcon() {
   );
 }
 
-export function OceanWavesSoundToggle() {
+export function BlackWaterKoiSoundToggle() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [soundOn, setSoundOn] = useState(false);
 
   useEffect(() => {
-    const audio = new Audio(OCEAN_WAVES_SRC);
+    const audio = new Audio(RAIN_AUDIO_SRC);
     audio.loop = true;
     audio.volume = 0.55;
     audioRef.current = audio;
@@ -91,9 +93,9 @@ export function OceanWavesSoundToggle() {
     <button
       type="button"
       onClick={() => setSoundOn((on) => !on)}
-      className="pointer-events-auto absolute bottom-[clamp(1.25rem,4vh,2.5rem)] right-[clamp(1rem,4vw,2.5rem)] z-20 flex h-10 w-10 items-center justify-center rounded-full border border-[#2a2a2a] bg-white/70 shadow-sm transition hover:bg-white/85 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#2a2a2a]/35 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+      className="pointer-events-auto absolute bottom-[clamp(1.25rem,4vh,2.5rem)] right-[clamp(1rem,4vw,2.5rem)] z-20 flex h-10 w-10 items-center justify-center rounded-full border border-white/90 bg-black/35 text-white shadow-sm backdrop-blur-sm transition hover:bg-white/10 focus:outline-none focus-visible:ring-1 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
       aria-pressed={soundOn}
-      aria-label={soundOn ? 'Turn off ocean sound' : 'Turn on ocean sound'}
+      aria-label={soundOn ? 'Turn off rain sound' : 'Turn on rain sound'}
     >
       {soundOn ? <MicOnIcon /> : <MicOffIcon />}
     </button>

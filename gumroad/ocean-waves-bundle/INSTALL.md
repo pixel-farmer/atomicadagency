@@ -61,13 +61,23 @@ export default function Page() {
 
 Use `dynamic(..., { ssr: false })` if you import the experience from a Server Component parent.
 
-## 4. Tune the scene
+## 4. Config & tuning
 
-- **Waves / color / sand blend:** `components/assists/rolling-shore/shaders/rollingShoreShader.ts`
+**Quick config** — `components/assists/rolling-shore/rollingShoreConfig.ts`:
+
+```ts
+export const ROLLING_SHORE_CONFIG = {
+  soundButtonEnabled: true, // false = no mic button, no audio UI
+} as const;
+```
+
+**Scene tuning:**
+
+- **Waves / color / sand blend:** `shaders/rollingShoreShader.ts`
 - **Sky:** `RollingShoreSky.tsx`, sky uniforms on `RollingShoreSurface.tsx`
 - **Camera:** `RollingShoreScene.tsx` — `CAMERA_POS` / `LOOK_AT`
 - **Sand tile scale:** `SAND_REPEAT` in `RollingShoreSurface.tsx`
-- **Audio:** `OceanWavesSoundToggle.tsx` (mic toggle, upper-left in the assist)
+- **Audio UI:** `OceanWavesSoundToggle.tsx` (lower-right when enabled)
 
 ## 5. Not included (Vaxion demo site only)
 

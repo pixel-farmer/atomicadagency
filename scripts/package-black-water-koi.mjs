@@ -18,6 +18,7 @@ const ASSETS = [
   'koi-diffuse-ow.png',
   'koi-diffuse-gray.png',
   'koi-diffuse-charcoal.png',
+  'raining.mp3',
 ];
 
 const KOI_FILES = [
@@ -25,6 +26,8 @@ const KOI_FILES = [
   'BlackWaterKoiScene.tsx',
   'BlackWaterKoiFish.tsx',
   'BlackWaterSurface.tsx',
+  'BlackWaterKoiSoundToggle.tsx',
+  'blackWaterKoiConfig.ts',
   'koiSchoolConfig.ts',
   'koiSchoolPositions.ts',
   'index.ts',
@@ -141,6 +144,7 @@ From this zip into your project:
 | \`components/canvas/\` | \`components/canvas/\` |
 | \`public/koi_fish_ow.glb\` | \`public/koi_fish_ow.glb\` |
 | \`public/koi-diffuse-*.png\` | \`public/\` (same filenames) |
+| \`public/raining.mp3\` | \`public/raining.mp3\` |
 
 Keep the \`@/components/...\` import paths — they match the layout above.
 
@@ -174,7 +178,19 @@ Edit \`components/assists/black-water-koi/koiSchoolConfig.ts\`:
 
 See comments in that file for \`swimDepth\` vs horizontal spacing.
 
-## 5. Not included (Vaxion demo site only)
+## 5. Rain audio
+
+**Quick config** — \`components/assists/black-water-koi/blackWaterKoiConfig.ts\`:
+
+\`\`\`ts
+export const BLACK_WATER_KOI_CONFIG = {
+  soundButtonEnabled: true, // false = no mic button, no rain audio UI
+} as const;
+\`\`\`
+
+Looped rain uses \`/raining.mp3\` in \`public/\`. The mic toggle sits lower-right (user tap required for browser autoplay).
+
+## 6. Not included (Vaxion demo site only)
 
 The homepage **close** button, black circle transition, and thumbnail row are **not** in this bundle. They live in the seller’s marketing site showcase — add your own navigation and CTAs.
 
@@ -184,6 +200,7 @@ The homepage **close** button, black circle transition, and thumbnail row are **
 |-------|--------|
 | Blank / black canvas | Assets in \`public/\`, \`ssr: false\`, browser WebGL |
 | Textures missing | PNG paths in \`koiSchoolConfig\` match \`public/\` filenames |
+| No rain sound | Tap mic (autoplay policy); \`raining.mp3\` in \`public/\` |
 | Type errors on \`three\` | \`npm i -D @types/three\` |
 
 ---

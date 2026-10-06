@@ -7,6 +7,8 @@ Self-contained React Three Fiber assist: rain ripples, shader water, and a confi
 - `BlackWaterKoiExperience` — drop-in full-size canvas shell
 - `BlackWaterKoiScene`, `BlackWaterSurface`, `BlackWaterKoiFish`
 - `koiSchoolConfig.ts` — fish count, diffuse maps, spawn, depth, speed
+- `blackWaterKoiConfig.ts` — rain audio mic toggle (`soundButtonEnabled`)
+- `BlackWaterKoiSoundToggle.tsx` — looped `/raining.mp3` (lower-right)
 - `shaders/blackWaterShader.ts`
 - Public assets: `koi_fish_ow.glb`, `koi-diffuse-*.png` (paths referenced in config)
 
