@@ -34,7 +34,7 @@ const config: Config = {
         surface: '#f4f6fa',
       },
       fontFamily: {
-        sans: ['var(--font-dm-sans)', 'sans-serif'],
+        sans: ['var(--font-outfit)', 'sans-serif'],
         display: ['var(--font-outfit)', 'sans-serif'],
       },
       letterSpacing: {

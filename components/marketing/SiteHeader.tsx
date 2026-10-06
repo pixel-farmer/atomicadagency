@@ -11,7 +11,7 @@ export function SiteHeader() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
         <Link
           href="/"
-          className="text-lg font-semibold tracking-tight text-white transition hover:text-accent"
+          className="font-sans text-lg font-semibold tracking-tight text-white transition hover:text-accent"
         >
           Atomic
         </Link>
@@ -20,7 +20,7 @@ export function SiteHeader() {
             <Link
               key={item.label}
               href={item.href}
-              className="text-xs font-semibold uppercase tracking-[0.14em] text-muted transition hover:text-white"
+              className="font-sans text-xs font-semibold uppercase tracking-[0.14em] text-muted transition hover:text-white"
             >
               {item.label}
             </Link>

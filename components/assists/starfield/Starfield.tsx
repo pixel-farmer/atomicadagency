@@ -286,7 +286,7 @@ export function Starfield({ layout = "page" }: StarfieldProps) {
 
       // Cardinal directions. Looking up with north at top puts east on the left.
       ctx.fillStyle = "rgba(210,220,255,0.65)";
-      ctx.font = "500 13px ui-sans-serif, system-ui, sans-serif";
+      ctx.font = '500 13px Outfit, sans-serif';
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("N", cx, cy - R - 14);
@@ -354,7 +354,7 @@ export function Starfield({ layout = "page" }: StarfieldProps) {
 
       // Names
       if (s.showNames) {
-        ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
+        ctx.font = '12px Outfit, sans-serif';
         ctx.textAlign = "left";
         ctx.textBaseline = "alphabetic";
         ctx.fillStyle = "rgba(200,212,255,0.7)";
@@ -590,7 +590,7 @@ const css = `
   padding: 28px clamp(14px, 4vw, 48px) 48px;
   background: #03040c;
   color: #d6ddf5;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-outfit), sans-serif;
 }
 .sf-head h1 { margin: 0 0 6px; font-size: clamp(22px, 3.2vw, 32px); font-weight: 600; letter-spacing: -0.01em; }
 .sf-head p { margin: 0 0 22px; max-width: 62ch; line-height: 1.55; color: #98a3c9; }
@@ -601,7 +601,7 @@ const css = `
   flex: 0 0 280px; display: flex; flex-direction: column; gap: 14px;
   padding: 18px; border: 1px solid rgba(255,255,255,0.2); border-radius: 10px;
   background: transparent;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-outfit), sans-serif;
   font-size: 12px;
   font-weight: 200;
   letter-spacing: 0.35em;

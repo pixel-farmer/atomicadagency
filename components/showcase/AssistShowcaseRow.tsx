@@ -374,7 +374,7 @@ function AssistGrowingOverlay({
           }`}
         >
           {assistIndex === 0 && phase === 'open' ? (
-            <p className="pointer-events-auto max-w-lg font-display text-[11px] font-normal leading-relaxed text-white/75 sm:text-xs md:max-w-xl md:text-sm">
+            <p className="pointer-events-auto max-w-lg font-sans text-[11px] font-light leading-relaxed text-white/75 sm:text-xs md:max-w-xl md:text-sm">
               A drop-in, full-viewport 3D koi pond for Next.js and React Three Fiber:
               dark shader water, rain ripples, and a configurable school of animated koi.
               Built for landing pages, hero sections, and portfolio sites where you want
@@ -384,7 +384,7 @@ function AssistGrowingOverlay({
                 href={BLACK_WATER_KOI_GUMROAD_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-normal text-white underline decoration-white/35 underline-offset-[3px] transition hover:decoration-white/80"
+                className="font-sans font-normal text-white underline decoration-white/35 underline-offset-[3px] transition hover:decoration-white/80"
               >
                 Get Black Water Koi on Gumroad
               </a>
@@ -392,7 +392,7 @@ function AssistGrowingOverlay({
           ) : null}
 
           {assistIndex === 1 && phase === 'open' ? (
-            <p className="pointer-events-auto max-w-lg font-display text-[11px] font-normal leading-relaxed text-[#404040]/90 sm:text-xs md:max-w-xl md:text-sm">
+            <p className="pointer-events-auto max-w-lg font-sans text-[11px] font-light leading-relaxed text-[#404040]/90 sm:text-xs md:max-w-xl md:text-sm">
               A drop-in, full-viewport moody shore for Next.js and React Three Fiber:
               shader rolling swells, tiled sand, soft sky, and optional looped wave audio
               with a mic toggle you can hide in config. Built for hero sections and
@@ -402,7 +402,7 @@ function AssistGrowingOverlay({
                 href={OCEAN_WAVES_GUMROAD_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-normal text-[#2a2a2a] underline decoration-[#525252]/45 underline-offset-[3px] transition hover:decoration-[#525252]/85"
+                className="font-sans font-normal text-[#2a2a2a] underline decoration-[#525252]/45 underline-offset-[3px] transition hover:decoration-[#525252]/85"
               >
                 Get Ocean Waves on Gumroad
               </a>

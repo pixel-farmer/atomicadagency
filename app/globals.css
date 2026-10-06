@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  --font-outfit: 'Outfit', sans-serif;
   --navy-deep: #050d1d;
   --navy-mid: #071226;
   --navy-panel: #0a1628;
@@ -10,6 +11,20 @@
   --text-primary: #f4f6fa;
   --text-muted: #8b9bb4;
   --space: clamp(1rem, 4vw, 2.5rem);
+}
+
+@layer base {
+  html {
+    @apply font-sans antialiased;
+  }
+
+  a,
+  button,
+  input,
+  select,
+  textarea {
+    font-family: inherit;
+  }
 }
 
 *,
@@ -55,7 +70,7 @@ body {
   min-height: 100vh;
   background: var(--navy-deep);
   color: var(--text-primary);
-  font-family: var(--font-dm-sans, "DM Sans"), sans-serif;
+  font-family: var(--font-outfit), sans-serif;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
