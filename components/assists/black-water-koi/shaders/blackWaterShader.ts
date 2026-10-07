@@ -1,4 +1,7 @@
 export const MAX_RIPPLES = 12;
+/** Separate pool for cursor-trail ripples so fast mouse movement never evicts raindrops. */
+export const MAX_TRAIL_RIPPLES = 24;
+export const TRAIL_RIPPLE_LIFETIME = 1.6;
 
 const rippleHelpers = /* glsl */ `
 float rainRippleHeight(vec2 p, vec2 center, float age, float amp) {
@@ -34,16 +37,63 @@ float rainHeight(vec2 p, float t, vec4 ripples[${MAX_RIPPLES}]) {
   return h;
 }
 
-float waterHeight(vec2 p, float t, vec4 ripples[${MAX_RIPPLES}]) {
-  return rainHeight(p, t, ripples);
+/**
+ * Smaller, quicker single ring than rain — reads as a wake behind the cursor.
+ * motion.xy is the cursor's travel direction when the ripple dropped and motion.z how much
+ * to stretch along it; as the ripple ages it elongates that way and its fine crests soften into
+ * broader, blurrier swells, the way a real wake decays.
+ */
+float trailRippleHeight(vec2 p, vec2 center, vec4 motion, float age, float amp) {
+  if (amp <= 0.0 || age < 0.0) return 0.0;
+
+  float endFade = 1.0 - smoothstep(${(TRAIL_RIPPLE_LIFETIME * 0.55).toFixed(2)}, ${TRAIL_RIPPLE_LIFETIME.toFixed(2)}, age);
+  if (endFade <= 0.0) return 0.0;
+
+  float life = clamp(age / ${TRAIL_RIPPLE_LIFETIME.toFixed(2)}, 0.0, 1.0);
+
+  vec2 d = p - center;
+  vec2 dir = motion.xy;
+  float stretch = 1.0 + motion.z * TRAIL_STRETCH * life;
+  float along = dot(d, dir) / stretch;
+  float across = dot(d, vec2(-dir.y, dir.x));
+  float r = length(vec2(along, across));
+
+  float radius = age * 0.9;
+  float distanceFromFront = r - radius;
+
+  float freq = mix(17.0, TRAIL_TAIL_FREQ, life);
+  float sharpness = mix(7.0, TRAIL_TAIL_SHARPNESS, life);
+  float wave = sin(distanceFromFront * freq);
+  float ringWidth = exp(-distanceFromFront * distanceFromFront * sharpness);
+  float fade = exp(-age * 1.1);
+  // Broader crests have gentler slopes and catch less light, so give them back some height
+  // or the blurred tail vanishes instead of lingering.
+  float tailBoost = mix(1.0, 1.9, life);
+
+  return amp * endFade * wave * ringWidth * fade * tailBoost;
 }
 
-vec3 waterNormal(vec2 p, float t, vec4 ripples[${MAX_RIPPLES}]) {
+float trailHeight(vec2 p, float t, vec4 trail[${MAX_TRAIL_RIPPLES}], vec4 trailMotion[${MAX_TRAIL_RIPPLES}]) {
+  float h = 0.0;
+  for (int i = 0; i < ${MAX_TRAIL_RIPPLES}; i++) {
+    vec4 rip = trail[i];
+    if (rip.w > 0.0) {
+      h += trailRippleHeight(p, rip.xy, trailMotion[i], t - rip.z, rip.w);
+    }
+  }
+  return h;
+}
+
+float waterHeight(vec2 p, float t, vec4 ripples[${MAX_RIPPLES}], vec4 trail[${MAX_TRAIL_RIPPLES}], vec4 trailMotion[${MAX_TRAIL_RIPPLES}]) {
+  return rainHeight(p, t, ripples) + trailHeight(p, t, trail, trailMotion);
+}
+
+vec3 waterNormal(vec2 p, float t, vec4 ripples[${MAX_RIPPLES}], vec4 trail[${MAX_TRAIL_RIPPLES}], vec4 trailMotion[${MAX_TRAIL_RIPPLES}]) {
   float eps = 0.018;
-  float hx1 = waterHeight(p + vec2(eps, 0.0), t, ripples);
-  float hx0 = waterHeight(p - vec2(eps, 0.0), t, ripples);
-  float hz1 = waterHeight(p + vec2(0.0, eps), t, ripples);
-  float hz0 = waterHeight(p - vec2(0.0, eps), t, ripples);
+  float hx1 = waterHeight(p + vec2(eps, 0.0), t, ripples, trail, trailMotion);
+  float hx0 = waterHeight(p - vec2(eps, 0.0), t, ripples, trail, trailMotion);
+  float hz1 = waterHeight(p + vec2(0.0, eps), t, ripples, trail, trailMotion);
+  float hz0 = waterHeight(p - vec2(0.0, eps), t, ripples, trail, trailMotion);
   float dx = (hx1 - hx0) / (2.0 * eps);
   float dz = (hz1 - hz0) / (2.0 * eps);
   return normalize(vec3(-dx, 1.0, -dz));
@@ -64,8 +114,16 @@ export const blackWaterFragmentShader = /* glsl */ `
 uniform float uTime;
 uniform vec3 uLightDir;
 uniform vec4 uRipples[${MAX_RIPPLES}];
+uniform vec4 uTrail[${MAX_TRAIL_RIPPLES}];
+uniform vec4 uTrailMotion[${MAX_TRAIL_RIPPLES}];
 
 varying vec3 vWorldPos;
+
+// Cursor wake tail: how far old ripples stretch along the direction of travel (at full speed),
+// and the softer crest frequency / ring sharpness they blur toward by the end of their life.
+const float TRAIL_STRETCH = 2.2;
+const float TRAIL_TAIL_FREQ = 9.0;
+const float TRAIL_TAIL_SHARPNESS = 2.2;
 
 ${rippleHelpers}
 
@@ -102,7 +160,7 @@ float valueNoise(vec2 p) {
 
 void main() {
   vec2 p = vWorldPos.xz;
-  vec3 n = waterNormal(p, uTime, uRipples);
+  vec3 n = waterNormal(p, uTime, uRipples, uTrail, uTrailMotion);
   vec3 viewDir = normalize(cameraPosition - vWorldPos);
   vec3 lightDir = normalize(uLightDir);
   vec3 halfDir = normalize(lightDir + viewDir);

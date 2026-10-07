@@ -185,6 +185,7 @@ See comments in that file for \`swimDepth\` vs horizontal spacing.
 \`\`\`ts
 export const BLACK_WATER_KOI_CONFIG = {
   soundButtonEnabled: true, // false = no mic button, no rain audio UI
+  cursorRipplesEnabled: true, // false = no trailing ripples under the cursor
 } as const;
 \`\`\`
 
