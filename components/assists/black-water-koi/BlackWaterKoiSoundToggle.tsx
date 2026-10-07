@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-const RAIN_AUDIO_SRC = '/raining.mp3';
+const RAIN_AUDIO_SRC = '/raining.ogg';
 
 function MicOnIcon() {
   return (
