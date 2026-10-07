@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 void import('@/components/assists/black-water-koi').then(() => undefined);
 void import('@/components/assists/rolling-shore').then(() => undefined);
 void import('@/components/assists/starfield').then(() => undefined);
+void import('@/components/assists/the-room').then(() => undefined);
 
 const BlackWaterKoiExperience = dynamic(
 
@@ -43,9 +44,15 @@ const StarfieldExperience = dynamic(
 
 );
 
+const TheRoomExperience = dynamic(
+  () => import('@/components/assists/the-room').then((m) => m.TheRoomExperience),
+  { ssr: false },
+);
 
 
-const PLACEHOLDER_COUNT = 3;
+
+/** One circle per entry; the grid is 3 wide, so entry 4 starts a new row under the first. */
+const ASSIST_CAPTIONS = ['BLACK WATER KOI', 'OCEAN WAVES', 'STARFIELD', 'THE ROOM'] as const;
 
 
 
@@ -244,6 +251,9 @@ function AssistGrowingOverlay({
   const showBlackWaterKoi = assistIndex === 0 && sceneReady;
   const showRollingShore = assistIndex === 1 && sceneReady;
   const showStarfield = assistIndex === 2 && sceneReady;
+  const showTheRoom = assistIndex === 3 && sceneReady;
+  /** Scenes bright enough that the close button needs its dark style. */
+  const lightScene = (assistIndex === 1 || assistIndex === 3) && phase === 'open';
   const circleHidden = phase === 'open';
   const circleScale = phase === 'exiting' ? 1 : endScale;
   const overlayOpenBg =
@@ -252,7 +262,9 @@ function AssistGrowingOverlay({
         ? 'bg-[#5c5668]'
         : assistIndex === 2
           ? 'bg-[#03040c]'
-          : 'bg-black'
+          : assistIndex === 3
+            ? 'bg-[#f4f4f4]'
+            : 'bg-black'
       : 'bg-transparent';
 
   return (
@@ -303,6 +315,12 @@ function AssistGrowingOverlay({
 
       ) : null}
 
+      {showTheRoom ? (
+        <div className="absolute inset-0 z-[1]">
+          <TheRoomExperience />
+        </div>
+      ) : null}
+
 
 
       <motion.div
@@ -335,7 +353,7 @@ function AssistGrowingOverlay({
           if (phase !== 'entering' || expandDone.current) return;
           expandDone.current = true;
           setSceneReady(true);
-          if (assistIndex === 0 || assistIndex === 1 || assistIndex === 2) {
+          if (assistIndex >= 0 && assistIndex <= 3) {
             requestAnimationFrame(() => {
               requestAnimationFrame(() => setPhase('open'));
             });
@@ -392,7 +410,7 @@ function AssistGrowingOverlay({
             type="button"
             onClick={requestClose}
             className={`pointer-events-auto shrink-0 self-end bg-transparent px-10 py-2.5 font-sans text-xs font-extralight uppercase tracking-[0.35em] transition focus:outline-none focus-visible:ring-1 sm:self-auto ${
-              assistIndex === 1 && phase === 'open'
+              lightScene
                 ? 'border border-[#525252] text-[#404040] hover:bg-black/[0.06] focus-visible:ring-[#525252]'
                 : 'border border-white/90 text-white hover:bg-white/5 focus-visible:ring-white'
             }`}
@@ -447,7 +465,7 @@ export function AssistShowcaseRow() {
 
         <div className="pointer-events-auto relative z-[2] grid w-full max-w-5xl grid-cols-1 gap-10 sm:grid-cols-3 sm:gap-8 md:gap-12">
 
-          {Array.from({ length: PLACEHOLDER_COUNT }, (_, i) => (
+          {ASSIST_CAPTIONS.map((caption, i) => (
 
             <AssistThumbnail
 
@@ -455,15 +473,7 @@ export function AssistShowcaseRow() {
 
               label={`Open assist preview ${i + 1}`}
 
-              caption={
-                i === 0
-                  ? 'BLACK WATER KOI'
-                  : i === 1
-                    ? 'OCEAN WAVES'
-                    : i === 2
-                      ? 'STARFIELD'
-                      : undefined
-              }
+              caption={caption}
 
               onSelect={(rect) => setFocus({ index: i, rect })}
 
