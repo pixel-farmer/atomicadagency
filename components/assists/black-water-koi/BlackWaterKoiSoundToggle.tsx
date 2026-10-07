@@ -62,31 +62,93 @@ function MicOffIcon() {
   );
 }
 
+const RAIN_VOLUME = 0.55;
+/**
+ * Exact length of raining.ogg (1,940,400 samples @ 44.1 kHz). Chrome decodes ~15 ms of
+ * near-silent encoder padding past this, which clicks at the seam if left in the loop.
+ * Update if the file is re-rendered at a different length.
+ */
+const RAIN_LOOP_SECONDS = 44;
+/** Short ramp so toggling on/off doesn't click. */
+const FADE_SECONDS = 0.08;
+
 export function BlackWaterKoiSoundToggle() {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const ctxRef = useRef<AudioContext | null>(null);
+  const gainRef = useRef<GainNode | null>(null);
+  const bufferRef = useRef<Promise<AudioBuffer> | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const [soundOn, setSoundOn] = useState(false);
 
   useEffect(() => {
-    const audio = new Audio(RAIN_AUDIO_SRC);
-    audio.loop = true;
-    audio.volume = 0.55;
-    audioRef.current = audio;
     return () => {
-      audio.pause();
-      audio.removeAttribute('src');
-      audio.load();
-      audioRef.current = null;
+      sourceRef.current?.stop();
+      sourceRef.current = null;
+      void ctxRef.current?.close();
+      ctxRef.current = null;
+      gainRef.current = null;
+      bufferRef.current = null;
     };
   }, []);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (soundOn) {
-      void audio.play().catch(() => setSoundOn(false));
-    } else {
-      audio.pause();
+    if (!soundOn) {
+      const ctx = ctxRef.current;
+      const gain = gainRef.current;
+      if (!ctx || !gain) return;
+      const now = ctx.currentTime;
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setValueAtTime(gain.gain.value, now);
+      gain.gain.linearRampToValueAtTime(0, now + FADE_SECONDS);
+      void new Promise((r) => setTimeout(r, FADE_SECONDS * 1000 + 20)).then(() => {
+        if (ctxRef.current === ctx && ctx.state === 'running') void ctx.suspend();
+      });
+      return;
     }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        if (!ctxRef.current) {
+          const ctx = new AudioContext();
+          const gain = ctx.createGain();
+          gain.gain.value = 0;
+          gain.connect(ctx.destination);
+          ctxRef.current = ctx;
+          gainRef.current = gain;
+          bufferRef.current = fetch(RAIN_AUDIO_SRC)
+            .then((res) => res.arrayBuffer())
+            .then((data) => ctx.decodeAudioData(data));
+        }
+        const ctx = ctxRef.current;
+        const gain = gainRef.current!;
+        await ctx.resume();
+        const buffer = await bufferRef.current!;
+        if (cancelled) return;
+
+        if (!sourceRef.current) {
+          const source = ctx.createBufferSource();
+          source.buffer = buffer;
+          source.loop = true;
+          source.loopStart = 0;
+          source.loopEnd = Math.min(RAIN_LOOP_SECONDS, buffer.duration);
+          source.connect(gain);
+          source.start();
+          sourceRef.current = source;
+        }
+
+        const now = ctx.currentTime;
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setValueAtTime(gain.gain.value, now);
+        gain.gain.linearRampToValueAtTime(RAIN_VOLUME, now + FADE_SECONDS);
+      } catch {
+        if (!cancelled) setSoundOn(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [soundOn]);
 
   return (
