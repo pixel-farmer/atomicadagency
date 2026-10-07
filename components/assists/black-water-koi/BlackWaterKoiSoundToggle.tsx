@@ -65,12 +65,66 @@ function MicOffIcon() {
 const RAIN_VOLUME = 0.55;
 /**
  * Exact length of raining.ogg (1,940,400 samples @ 44.1 kHz). Chrome decodes ~15 ms of
- * near-silent encoder padding past this, which clicks at the seam if left in the loop.
+ * near-silent encoder padding past this, so the padding is never played.
  * Update if the file is re-rendered at a different length.
  */
 const RAIN_LOOP_SECONDS = 44;
+/**
+ * The decoded start and end don't line up exactly (the 528 Hz tone is a few samples out of
+ * phase), so the loop seam is crossfaded instead of hard-cut.
+ */
+const SEAM_CROSSFADE_SECONDS = 0.5;
+/** Search window for the tone-phase-aligned crossfade start. */
+const SEAM_SEARCH_SECONDS = 0.007;
 /** Short ramp so toggling on/off doesn't click. */
 const FADE_SECONDS = 0.08;
+
+/**
+ * Builds a buffer whose last `fade` samples blend the file's tail into its head, so playback
+ * wraps from the blend straight into the continuation of the head with no discontinuity.
+ */
+function buildSeamlessLoop(ctx: AudioContext, src: AudioBuffer): AudioBuffer {
+  const sr = src.sampleRate;
+  const contentLen = Math.min(src.length, Math.round(RAIN_LOOP_SECONDS * sr));
+  const fade = Math.round(SEAM_CROSSFADE_SECONDS * sr);
+  if (contentLen < fade * 4) return src;
+
+  const probe = Math.min(2048, fade);
+  const ref = src.getChannelData(0);
+  const latest = contentLen - fade;
+  const earliest = Math.max(fade, latest - Math.round(SEAM_SEARCH_SECONDS * sr));
+  let end = latest;
+  let bestCorr = -Infinity;
+  for (let e = earliest; e <= latest; e++) {
+    let dot = 0;
+    let na = 0;
+    let nb = 0;
+    for (let k = 0; k < probe; k++) {
+      const a = ref[e + k];
+      const b = ref[k];
+      dot += a * b;
+      na += a * a;
+      nb += b * b;
+    }
+    const corr = dot / Math.sqrt(na * nb || 1);
+    if (corr > bestCorr) {
+      bestCorr = corr;
+      end = e;
+    }
+  }
+
+  const out = ctx.createBuffer(src.numberOfChannels, end, sr);
+  for (let ch = 0; ch < src.numberOfChannels; ch++) {
+    const x = src.getChannelData(ch);
+    const y = out.getChannelData(ch);
+    y.set(x.subarray(fade, end));
+    for (let k = 0; k < fade; k++) {
+      const w = 0.5 - 0.5 * Math.cos((Math.PI * k) / fade);
+      y[end - fade + k] = x[end + k] * (1 - w) + x[k] * w;
+    }
+  }
+  return out;
+}
 
 export function BlackWaterKoiSoundToggle() {
   const ctxRef = useRef<AudioContext | null>(null);
@@ -118,7 +172,8 @@ export function BlackWaterKoiSoundToggle() {
           gainRef.current = gain;
           bufferRef.current = fetch(RAIN_AUDIO_SRC)
             .then((res) => res.arrayBuffer())
-            .then((data) => ctx.decodeAudioData(data));
+            .then((data) => ctx.decodeAudioData(data))
+            .then((decoded) => buildSeamlessLoop(ctx, decoded));
         }
         const ctx = ctxRef.current;
         const gain = gainRef.current!;
@@ -130,8 +185,6 @@ export function BlackWaterKoiSoundToggle() {
           const source = ctx.createBufferSource();
           source.buffer = buffer;
           source.loop = true;
-          source.loopStart = 0;
-          source.loopEnd = Math.min(RAIN_LOOP_SECONDS, buffer.duration);
           source.connect(gain);
           source.start();
           sourceRef.current = source;
