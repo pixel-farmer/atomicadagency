@@ -2,6 +2,7 @@
  * Builds gumroad/black-water-koi-bundle/ for upload to Gumroad.
  * Run: npm run package:koi
  */
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -18,7 +19,7 @@ const ASSETS = [
   'koi-diffuse-ow.png',
   'koi-diffuse-gray.png',
   'koi-diffuse-charcoal.png',
-  'raining.mp3',
+  'raining.ogg',
 ];
 
 const KOI_FILES = [
@@ -104,7 +105,8 @@ const LICENSE_SRC = path.join(root, 'gumroad', 'BLACK-WATER-KOI-LICENSE.md');
 
 const INSTALL = `# BlackWaterKoi — Install guide
 
-React Three Fiber scene for Next.js: shader water, rain ripples, configurable koi school.
+React Three Fiber scene for Next.js: shader water, rain ripples, configurable koi school,
+optional looped rain audio with a mic toggle, and a cursor wake on the water.
 
 **Version:** packaged from Vaxion Studios assist  
 
@@ -144,7 +146,7 @@ From this zip into your project:
 | \`components/canvas/\` | \`components/canvas/\` |
 | \`public/koi_fish_ow.glb\` | \`public/koi_fish_ow.glb\` |
 | \`public/koi-diffuse-*.png\` | \`public/\` (same filenames) |
-| \`public/raining.mp3\` | \`public/raining.mp3\` |
+| \`public/raining.ogg\` | \`public/raining.ogg\` (optional — see section 5) |
 
 Keep the \`@/components/...\` import paths — they match the layout above.
 
@@ -178,18 +180,26 @@ Edit \`components/assists/black-water-koi/koiSchoolConfig.ts\`:
 
 See comments in that file for \`swimDepth\` vs horizontal spacing.
 
-## 5. Rain audio
+## 5. Settings: rain audio & cursor ripples
 
-**Quick config** — \`components/assists/black-water-koi/blackWaterKoiConfig.ts\`:
+Edit \`components/assists/black-water-koi/blackWaterKoiConfig.ts\`:
 
 \`\`\`ts
 export const BLACK_WATER_KOI_CONFIG = {
-  soundButtonEnabled: true, // false = no mic button, no rain audio UI
+  soundButtonEnabled: true,   // false = remove audio entirely (no mic button, no audio loaded)
   cursorRipplesEnabled: true, // false = no trailing ripples under the cursor
 } as const;
 \`\`\`
 
-Looped rain uses \`/raining.mp3\` in \`public/\`. The mic toggle sits lower-right (user tap required for browser autoplay).
+**Rain audio** — a mic toggle sits lower-right and loops \`/raining.ogg\` seamlessly (browsers
+require a tap before audio can play, so it starts off). Set \`soundButtonEnabled: false\` to
+remove audio altogether: the mic button is not rendered and the audio file is never requested,
+so you can skip copying \`public/raining.ogg\`.
+
+**Cursor ripples** — moving the mouse (or dragging a finger) over the water leaves a small wake
+that softens and stretches out behind it. Set \`cursorRipplesEnabled: false\` to turn it off.
+Look/size tuning: \`TRAIL_*\` constants at the top of \`BlackWaterSurface.tsx\` and
+\`shaders/blackWaterShader.ts\`.
 
 ## 6. Not included (Vaxion demo site only)
 
@@ -201,7 +211,8 @@ The homepage **close** button, black circle transition, and thumbnail row are **
 |-------|--------|
 | Blank / black canvas | Assets in \`public/\`, \`ssr: false\`, browser WebGL |
 | Textures missing | PNG paths in \`koiSchoolConfig\` match \`public/\` filenames |
-| No rain sound | Tap mic (autoplay policy); \`raining.mp3\` in \`public/\` |
+| No rain sound | Tap mic (autoplay policy); \`raining.ogg\` in \`public/\`; \`soundButtonEnabled\` is \`true\` |
+| Re-exported the audio | Update \`RAIN_LOOP_SECONDS\` in \`BlackWaterKoiSoundToggle.tsx\` to the new length |
 | Type errors on \`three\` | \`npm i -D @types/three\` |
 
 ---
@@ -211,7 +222,8 @@ The homepage **close** button, black circle transition, and thumbnail row are **
 
 const MANIFEST = {
   name: 'black-water-koi',
-  description: 'Next.js R3F assist — black water, rain ripples, koi school',
+  description:
+    'Next.js R3F assist — black water, rain ripples, koi school, optional rain audio, cursor wake',
   peerDependencies: {
     next: '>=13',
     react: '>=18',
@@ -258,12 +270,24 @@ Quick tree:
 
 - \`components/assists/black-water-koi/\` — scene source
 - \`components/canvas/\` — thin Next.js canvas shell (required)
-- \`public/\` — GLB + diffuse PNGs
+- \`public/\` — GLB, diffuse PNGs, rain audio
 - \`example/\` — sample page
-
-Zip this folder (or \`gumroad/black-water-koi-bundle\`) for Gumroad upload.
+- Settings (audio on/off, cursor ripples): \`components/assists/black-water-koi/blackWaterKoiConfig.ts\`
 `,
 );
 
 console.log('Bundle written to:', out);
 console.log('Assets:', ASSETS.join(', '));
+
+const zipPath = `${out}.zip`;
+if (fs.existsSync(zipPath)) fs.rmSync(zipPath);
+if (process.platform === 'win32') {
+  execFileSync(
+    'powershell',
+    ['-NoProfile', '-Command', `Compress-Archive -Path '${out}\\*' -DestinationPath '${zipPath}'`],
+    { stdio: 'inherit' },
+  );
+} else {
+  execFileSync('zip', ['-rq', zipPath, '.'], { cwd: out, stdio: 'inherit' });
+}
+console.log('Zip written to:', zipPath);

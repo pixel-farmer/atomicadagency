@@ -6,7 +6,6 @@ Quick tree:
 
 - `components/assists/black-water-koi/` — scene source
 - `components/canvas/` — thin Next.js canvas shell (required)
-- `public/` — GLB + diffuse PNGs
+- `public/` — GLB, diffuse PNGs, rain audio
 - `example/` — sample page
-
-Zip this folder (or `gumroad/black-water-koi-bundle`) for Gumroad upload.
+- Settings (audio on/off, cursor ripples): `components/assists/black-water-koi/blackWaterKoiConfig.ts`

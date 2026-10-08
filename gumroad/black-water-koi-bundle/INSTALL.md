@@ -1,6 +1,7 @@
 # BlackWaterKoi — Install guide
 
-React Three Fiber scene for Next.js: shader water, rain ripples, configurable koi school.
+React Three Fiber scene for Next.js: shader water, rain ripples, configurable koi school,
+optional looped rain audio with a mic toggle, and a cursor wake on the water.
 
 **Version:** packaged from Vaxion Studios assist  
 
@@ -40,6 +41,7 @@ From this zip into your project:
 | `components/canvas/` | `components/canvas/` |
 | `public/koi_fish_ow.glb` | `public/koi_fish_ow.glb` |
 | `public/koi-diffuse-*.png` | `public/` (same filenames) |
+| `public/raining.ogg` | `public/raining.ogg` (optional — see section 5) |
 
 Keep the `@/components/...` import paths — they match the layout above.
 
@@ -73,7 +75,28 @@ Edit `components/assists/black-water-koi/koiSchoolConfig.ts`:
 
 See comments in that file for `swimDepth` vs horizontal spacing.
 
-## 5. Not included (Vaxion demo site only)
+## 5. Settings: rain audio & cursor ripples
+
+Edit `components/assists/black-water-koi/blackWaterKoiConfig.ts`:
+
+```ts
+export const BLACK_WATER_KOI_CONFIG = {
+  soundButtonEnabled: true,   // false = remove audio entirely (no mic button, no audio loaded)
+  cursorRipplesEnabled: true, // false = no trailing ripples under the cursor
+} as const;
+```
+
+**Rain audio** — a mic toggle sits lower-right and loops `/raining.ogg` seamlessly (browsers
+require a tap before audio can play, so it starts off). Set `soundButtonEnabled: false` to
+remove audio altogether: the mic button is not rendered and the audio file is never requested,
+so you can skip copying `public/raining.ogg`.
+
+**Cursor ripples** — moving the mouse (or dragging a finger) over the water leaves a small wake
+that softens and stretches out behind it. Set `cursorRipplesEnabled: false` to turn it off.
+Look/size tuning: `TRAIL_*` constants at the top of `BlackWaterSurface.tsx` and
+`shaders/blackWaterShader.ts`.
+
+## 6. Not included (Vaxion demo site only)
 
 The homepage **close** button, black circle transition, and thumbnail row are **not** in this bundle. They live in the seller’s marketing site showcase — add your own navigation and CTAs.
 
@@ -83,6 +106,8 @@ The homepage **close** button, black circle transition, and thumbnail row are **
 |-------|--------|
 | Blank / black canvas | Assets in `public/`, `ssr: false`, browser WebGL |
 | Textures missing | PNG paths in `koiSchoolConfig` match `public/` filenames |
+| No rain sound | Tap mic (autoplay policy); `raining.ogg` in `public/`; `soundButtonEnabled` is `true` |
+| Re-exported the audio | Update `RAIN_LOOP_SECONDS` in `BlackWaterKoiSoundToggle.tsx` to the new length |
 | Type errors on `three` | `npm i -D @types/three` |
 
 ---

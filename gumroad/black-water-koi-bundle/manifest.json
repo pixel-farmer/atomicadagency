@@ -1,6 +1,6 @@
 {
   "name": "black-water-koi",
-  "description": "Next.js R3F assist — black water, rain ripples, koi school",
+  "description": "Next.js R3F assist — black water, rain ripples, koi school, optional rain audio, cursor wake",
   "peerDependencies": {
     "next": ">=13",
     "react": ">=18",
@@ -13,6 +13,7 @@
     "koi_fish_ow.glb",
     "koi-diffuse-ow.png",
     "koi-diffuse-gray.png",
-    "koi-diffuse-charcoal.png"
+    "koi-diffuse-charcoal.png",
+    "raining.ogg"
   ]
 }
