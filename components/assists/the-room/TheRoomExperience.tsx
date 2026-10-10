@@ -1,12 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CanvasWrapper } from '@/components/canvas';
 import { TheRoomJoystick } from '@/components/assists/the-room/TheRoomJoystick';
 import { TheRoomScene } from '@/components/assists/the-room/TheRoomScene';
+import { TheRoomSound } from '@/components/assists/the-room/TheRoomSound';
+import { createRoomPuzzleState } from '@/components/assists/the-room/theRoomPuzzle';
 
 export function TheRoomExperience() {
   const [touch, setTouch] = useState(false);
+  const puzzle = useMemo(createRoomPuzzleState, []);
 
   useEffect(() => {
     const query = window.matchMedia('(pointer: coarse)');
@@ -26,8 +29,9 @@ export function TheRoomExperience() {
         dpr={[1, 1.75]}
         transparent={false}
       >
-        <TheRoomScene />
+        <TheRoomScene puzzle={puzzle} />
       </CanvasWrapper>
+      <TheRoomSound puzzle={puzzle} />
       {touch && (
         <TheRoomJoystick className="absolute bottom-[calc(clamp(1.25rem,4vh,2.5rem)+2rem)] left-[clamp(1rem,4vw,2.5rem)]" />
       )}

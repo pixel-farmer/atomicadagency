@@ -359,8 +359,9 @@ function RoomShell() {
   );
 }
 
-export function TheRoomScene() {
-  const puzzle = useMemo(createRoomPuzzleState, []);
+export function TheRoomScene({ puzzle: sharedPuzzle }: { puzzle?: RoomPuzzleState } = {}) {
+  const ownPuzzle = useMemo(createRoomPuzzleState, []);
+  const puzzle = sharedPuzzle ?? ownPuzzle;
   return (
     <>
       <color attach="background" args={[WALL_COLOR]} />
@@ -368,8 +369,8 @@ export function TheRoomScene() {
       <pointLight position={[0, ROOM_HEIGHT - 1.2, 0]} intensity={14} distance={0} decay={1.6} />
 
       <RoomShell />
-      <TheRoomRightWallWindows roomWidth={ROOM_WIDTH} roomHeight={ROOM_HEIGHT} />
       <Suspense fallback={null}>
+        <TheRoomRightWallWindows roomWidth={ROOM_WIDTH} />
         <TheRoomGrass width={ROOM_WIDTH} depth={ROOM_DEPTH} puzzle={puzzle} />
         <TheRoomModernChair x={CHAIR_POSITION.x} z={CHAIR_POSITION.y} />
       </Suspense>
