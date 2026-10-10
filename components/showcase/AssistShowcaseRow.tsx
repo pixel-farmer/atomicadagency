@@ -266,7 +266,7 @@ function AssistGrowingOverlay({
         : assistIndex === 2
           ? 'bg-[#03040c]'
           : assistIndex === 3
-            ? 'bg-[#f4f4f4]'
+            ? 'bg-[#a9c2d4]'
             : 'bg-black'
       : 'bg-transparent';
 

@@ -1,18 +1,33 @@
 'use client';
 
 import { useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { TheRoomGrass } from '@/components/assists/the-room/TheRoomGrass';
+import { TheRoomModernChair } from '@/components/assists/the-room/TheRoomModernChair';
+import { TheRoomRightWallWindows } from '@/components/assists/the-room/TheRoomWindows';
+import {
+  CALM_FALL_RATE,
+  CALM_RISE_SECONDS,
+  CHAIR_POSITION,
+  createRoomPuzzleState,
+  HINT_AFTER_SECONDS,
+  HINT_RISE_SECONDS,
+  roomTouchInput,
+  STILL_DELAY,
+  ZENO_FAR,
+  ZENO_MIN,
+  type RoomPuzzleState,
+} from '@/components/assists/the-room/theRoomPuzzle';
 
-export const ROOM_WIDTH = 16;
-export const ROOM_DEPTH = 16;
-export const ROOM_HEIGHT = 5;
+export const ROOM_WIDTH = 14;
+export const ROOM_DEPTH = 18;
+export const ROOM_HEIGHT = 12;
 
-const SPHERE_RADIUS = 1;
 const EYE_HEIGHT = 1.6;
 const START_POSITION = new THREE.Vector3(0, EYE_HEIGHT, 6);
 
-/** How close the camera may get to walls and the sphere. */
+/** How close the camera may get to the walls. */
 const BODY_RADIUS = 0.45;
 const WALK_SPEED = 3.2;
 const TURN_SPEED = 1.9;
@@ -20,6 +35,22 @@ const TURN_SPEED = 1.9;
 const MOVE_SMOOTHING = 10;
 const DRAG_LOOK_SENSITIVITY = 0.0035;
 const MAX_PITCH = 1.2;
+
+const BASE_FOV = 60;
+const MAX_DOLLY_FOV = 95;
+/** How strongly the view widens as you push toward the chair (1 = the chair keeps its exact size). */
+const DOLLY_STRENGTH = 0.6;
+
+/** Where the glide ends: standing in front of the chair, before turning to sit. */
+const APPROACH_DISTANCE = 1;
+const GLIDE_SPEED = 0.9;
+const SEAT_OFFSET = 0.08;
+const SEATED_EYE_HEIGHT = 1.15;
+/** Seated, facing the room and turned a little toward the windows. */
+const SIT_YAW = Math.PI + 0.45;
+const SIT_PITCH = -0.04;
+const SIT_SECONDS = 3.2;
+const STAND_SECONDS = 1.4;
 
 type Keys = {
   forward: boolean;
@@ -48,7 +79,7 @@ function isTypingTarget(target: EventTarget | null) {
   );
 }
 
-function FirstPersonControls() {
+function FirstPersonControls({ puzzle }: { puzzle: RoomPuzzleState }) {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
   const keys = useRef<Keys>({
@@ -62,6 +93,9 @@ function FirstPersonControls() {
   const yaw = useRef(0);
   const pitch = useRef(0);
   const velocity = useRef(new THREE.Vector3());
+  const walk = useRef({ hasWalked: false, stillTime: 0, walkTime: 0, engage: 0 });
+  const glide = useRef({ elapsed: 0 });
+  const transition = useRef({ t: 0, fromPos: new THREE.Vector3(), fromYaw: 0, fromPitch: 0 });
 
   useLayoutEffect(() => {
     camera.position.copy(START_POSITION);
@@ -135,34 +169,151 @@ function FirstPersonControls() {
   useFrame((_, rawDelta) => {
     const delta = Math.min(rawDelta, 0.05);
     const k = keys.current;
+    const s = walk.current;
+    const pos = camera.position;
+    const approach = new THREE.Vector3(
+      CHAIR_POSITION.x,
+      EYE_HEIGHT,
+      CHAIR_POSITION.y + APPROACH_DISTANCE,
+    );
 
     yaw.current += ((k.turnLeft ? 1 : 0) - (k.turnRight ? 1 : 0)) * TURN_SPEED * delta;
 
     const forward = new THREE.Vector3(-Math.sin(yaw.current), 0, -Math.cos(yaw.current));
     const right = new THREE.Vector3(-forward.z, 0, forward.x);
     const wish = new THREE.Vector3()
-      .addScaledVector(forward, (k.forward ? 1 : 0) - (k.back ? 1 : 0))
-      .addScaledVector(right, (k.right ? 1 : 0) - (k.left ? 1 : 0));
-    if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(WALK_SPEED);
+      .addScaledVector(forward, (k.forward ? 1 : 0) - (k.back ? 1 : 0) + roomTouchInput.y)
+      .addScaledVector(right, (k.right ? 1 : 0) - (k.left ? 1 : 0) + roomTouchInput.x);
+    const wishLength = wish.length();
+    if (wishLength > 1) wish.divideScalar(wishLength);
+    wish.multiplyScalar(WALK_SPEED);
+    const walking = wishLength > 0.15;
 
-    velocity.current.lerp(wish, 1 - Math.exp(-MOVE_SMOOTHING * delta));
+    const toChair = new THREE.Vector2(CHAIR_POSITION.x - pos.x, CHAIR_POSITION.y - pos.z);
+    const chairDistance = toChair.length();
+    toChair.divideScalar(Math.max(chairDistance, 1e-4));
+    let approaching = false;
 
-    const pos = camera.position;
-    pos.addScaledVector(velocity.current, delta);
+    const startTransition = (mode: 'sitting' | 'standing') => {
+      puzzle.mode = mode;
+      transition.current.t = 0;
+      transition.current.fromPos.copy(pos);
+      transition.current.fromYaw = yaw.current;
+      transition.current.fromPitch = pitch.current;
+      velocity.current.set(0, 0, 0);
+    };
 
-    const maxX = ROOM_WIDTH / 2 - BODY_RADIUS;
-    const maxZ = ROOM_DEPTH / 2 - BODY_RADIUS;
-    pos.x = THREE.MathUtils.clamp(pos.x, -maxX, maxX);
-    pos.z = THREE.MathUtils.clamp(pos.z, -maxZ, maxZ);
+    if (puzzle.mode === 'free') {
+      velocity.current.lerp(wish, 1 - Math.exp(-MOVE_SMOOTHING * delta));
 
-    const minDist = SPHERE_RADIUS + BODY_RADIUS;
-    const dist = Math.hypot(pos.x, pos.z);
-    if (dist < minDist) {
-      const scale = minDist / Math.max(dist, 1e-4);
-      pos.x = dist < 1e-4 ? minDist : pos.x * scale;
-      pos.z = dist < 1e-4 ? 0 : pos.z * scale;
+      // Progress toward the chair shrinks the closer you get, so it stays just out of reach.
+      const v = velocity.current;
+      const inward = v.x * toChair.x + v.z * toChair.y;
+      if (inward > 0) {
+        const keep = THREE.MathUtils.smoothstep(chairDistance, ZENO_MIN, ZENO_FAR);
+        v.x -= toChair.x * inward * (1 - keep);
+        v.z -= toChair.y * inward * (1 - keep);
+        approaching = walking && inward > WALK_SPEED * 0.3;
+      }
+
+      pos.addScaledVector(v, delta);
+      const maxX = ROOM_WIDTH / 2 - BODY_RADIUS;
+      const maxZ = ROOM_DEPTH / 2 - BODY_RADIUS;
+      pos.x = THREE.MathUtils.clamp(pos.x, -maxX, maxX);
+      pos.z = THREE.MathUtils.clamp(pos.z, -maxZ, maxZ);
+      pos.y = EYE_HEIGHT;
+    } else if (puzzle.mode === 'gliding') {
+      if (walking) {
+        puzzle.mode = 'free';
+      } else {
+        glide.current.elapsed += delta;
+        const remaining = pos.distanceTo(approach);
+        const speed =
+          GLIDE_SPEED *
+          THREE.MathUtils.smoothstep(glide.current.elapsed, 0, 2.5) *
+          (0.2 + 0.8 * THREE.MathUtils.smoothstep(remaining, 0, 2));
+        const step = Math.min(Math.max(speed, 0.12) * delta, remaining);
+        if (remaining > 1e-4) pos.addScaledVector(approach.clone().sub(pos).normalize(), step);
+        if (remaining - step < 0.02) startTransition('sitting');
+      }
+    } else if (puzzle.mode === 'sitting') {
+      const tr = transition.current;
+      if (walking) {
+        startTransition('standing');
+      } else if (tr.t < 1) {
+        tr.t = Math.min(1, tr.t + delta / SIT_SECONDS);
+        const e = THREE.MathUtils.smootherstep(tr.t, 0, 1);
+        const seat = new THREE.Vector3(CHAIR_POSITION.x, 0, CHAIR_POSITION.y + SEAT_OFFSET);
+        pos.x = THREE.MathUtils.lerp(tr.fromPos.x, seat.x, e);
+        pos.z = THREE.MathUtils.lerp(tr.fromPos.z, seat.z, e);
+        pos.y = THREE.MathUtils.lerp(
+          tr.fromPos.y,
+          SEATED_EYE_HEIGHT,
+          THREE.MathUtils.smootherstep(tr.t, 0.35, 1),
+        );
+        yaw.current = lerpAngle(tr.fromYaw, SIT_YAW, e);
+        pitch.current = THREE.MathUtils.lerp(tr.fromPitch, SIT_PITCH, e);
+      }
+    } else if (puzzle.mode === 'standing') {
+      const tr = transition.current;
+      tr.t = Math.min(1, tr.t + delta / STAND_SECONDS);
+      const e = THREE.MathUtils.smootherstep(tr.t, 0, 1);
+      pos.lerpVectors(tr.fromPos, approach, e);
+      if (tr.t >= 1) {
+        // Back to the start of the puzzle: they have to walk, then be still again.
+        puzzle.mode = 'free';
+        s.hasWalked = false;
+        s.stillTime = 0;
+        s.walkTime = 0;
+      }
     }
-    pos.y = EYE_HEIGHT;
+
+    if (walking) {
+      if (puzzle.mode === 'free') s.hasWalked = true;
+      s.stillTime = 0;
+    } else {
+      s.stillTime += delta;
+    }
+    if (walking && s.hasWalked && puzzle.mode === 'free' && puzzle.calm < 0.05) {
+      s.walkTime += delta;
+    }
+
+    const seated = puzzle.mode === 'sitting' || puzzle.mode === 'gliding';
+    const calmTarget = seated || (puzzle.mode === 'free' && s.hasWalked && s.stillTime > STILL_DELAY);
+    puzzle.calm = calmTarget
+      ? Math.min(1, puzzle.calm + delta / CALM_RISE_SECONDS)
+      : Math.max(0, puzzle.calm - CALM_FALL_RATE * delta);
+
+    if (puzzle.calm < 0.02) puzzle.pathStart.set(pos.x, pos.z);
+    puzzle.pathEnd.set(approach.x, approach.z);
+    puzzle.pathReveal = THREE.MathUtils.smoothstep(puzzle.calm, 0.25, 1);
+
+    const hintTarget = s.walkTime > HINT_AFTER_SECONDS && puzzle.calm < 0.5;
+    puzzle.hint = hintTarget
+      ? Math.min(1, puzzle.hint + delta / HINT_RISE_SECONDS)
+      : Math.max(0, puzzle.hint - 0.5 * delta);
+
+    if (puzzle.mode === 'free' && !walking && puzzle.calm >= 1) {
+      puzzle.mode = 'gliding';
+      glide.current.elapsed = 0;
+    }
+
+    // Vertigo zoom: walking at the chair widens the view so it never seems to grow.
+    s.engage +=
+      ((approaching && chairDistance < ZENO_FAR ? 1 : 0) - s.engage) * (1 - Math.exp(-1.5 * delta));
+    const ratio = Math.max(1, ZENO_FAR / Math.max(chairDistance, 0.5));
+    const dollyFov = Math.min(
+      MAX_DOLLY_FOV,
+      THREE.MathUtils.radToDeg(
+        2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(BASE_FOV / 2)) * ratio ** DOLLY_STRENGTH),
+      ),
+    );
+    const fov = BASE_FOV + (dollyFov - BASE_FOV) * s.engage * (1 - puzzle.calm);
+    const persp = camera as THREE.PerspectiveCamera;
+    if (Math.abs(persp.fov - fov) > 0.01) {
+      persp.fov = fov;
+      persp.updateProjectionMatrix();
+    }
 
     camera.rotation.set(pitch.current, yaw.current, 0, 'YXZ');
   });
@@ -170,60 +321,60 @@ function FirstPersonControls() {
   return null;
 }
 
-/**
- * The near-white floor clips to white under real shadow maps, and the sphere and light never
- * move, so the sphere is grounded with a static soft shadow texture instead.
- */
-function SphereContactShadow() {
-  const texture = useMemo(() => {
-    const size = 256;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d')!;
-    const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    g.addColorStop(0, 'rgba(0,0,0,0.85)');
-    g.addColorStop(0.22, 'rgba(0,0,0,0.6)');
-    g.addColorStop(0.55, 'rgba(0,0,0,0.18)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, size, size);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return tex;
+function lerpAngle(from: number, to: number, t: number) {
+  const diff = Math.atan2(Math.sin(to - from), Math.cos(to - from));
+  return from + diff * t;
+}
+
+const WALL_COLOR = '#a9c2d4';
+const CEILING_COLOR = '#c8d6df';
+
+function RoomShell() {
+  // BoxGeometry face order: +x, -x, +y (ceiling), -y (floor, hidden under the lawn), +z, -z.
+  const materials = useMemo(() => {
+    // A little self-glow keeps the blue from going gray where the single light barely reaches.
+    const wall = new THREE.MeshStandardMaterial({
+      color: WALL_COLOR,
+      emissive: WALL_COLOR,
+      emissiveIntensity: 0.35,
+      roughness: 0.95,
+      side: THREE.BackSide,
+    });
+    const ceiling = new THREE.MeshStandardMaterial({
+      color: CEILING_COLOR,
+      emissive: CEILING_COLOR,
+      emissiveIntensity: 0.55,
+      roughness: 0.95,
+      side: THREE.BackSide,
+    });
+    return [wall, wall, ceiling, wall, wall, wall];
   }, []);
 
-  useEffect(() => () => texture.dispose(), [texture]);
+  useEffect(() => () => new Set(materials).forEach((m) => m.dispose()), [materials]);
 
-  const size = SPHERE_RADIUS * 3.4;
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.003, 0]} renderOrder={1}>
-      <planeGeometry args={[size, size]} />
-      <meshBasicMaterial map={texture} transparent depthWrite={false} toneMapped={false} />
+    <mesh position={[0, ROOM_HEIGHT / 2, 0]} material={materials}>
+      <boxGeometry args={[ROOM_WIDTH, ROOM_HEIGHT, ROOM_DEPTH]} />
     </mesh>
   );
 }
 
 export function TheRoomScene() {
+  const puzzle = useMemo(createRoomPuzzleState, []);
   return (
     <>
-      <color attach="background" args={['#f4f4f4']} />
-      <hemisphereLight args={['#ffffff', '#d8d8d8', 0.9]} />
-      <pointLight position={[0, ROOM_HEIGHT - 0.6, 0]} intensity={22} distance={0} decay={1.6} />
+      <color attach="background" args={[WALL_COLOR]} />
+      <hemisphereLight args={['#f2f7fa', '#9aa892', 1.1]} />
+      <pointLight position={[0, ROOM_HEIGHT - 1.2, 0]} intensity={14} distance={0} decay={1.6} />
 
-      <mesh position={[0, ROOM_HEIGHT / 2, 0]}>
-        <boxGeometry args={[ROOM_WIDTH, ROOM_HEIGHT, ROOM_DEPTH]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.95} side={THREE.BackSide} />
-      </mesh>
+      <RoomShell />
+      <TheRoomRightWallWindows roomWidth={ROOM_WIDTH} roomHeight={ROOM_HEIGHT} />
+      <Suspense fallback={null}>
+        <TheRoomGrass width={ROOM_WIDTH} depth={ROOM_DEPTH} puzzle={puzzle} />
+        <TheRoomModernChair x={CHAIR_POSITION.x} z={CHAIR_POSITION.y} />
+      </Suspense>
 
-      <mesh position={[0, SPHERE_RADIUS, 0]}>
-        <sphereGeometry args={[SPHERE_RADIUS, 64, 48]} />
-        <meshStandardMaterial color="#050505" roughness={0.35} metalness={0.1} />
-      </mesh>
-
-      <SphereContactShadow />
-
-      <FirstPersonControls />
+      <FirstPersonControls puzzle={puzzle} />
     </>
   );
 }
