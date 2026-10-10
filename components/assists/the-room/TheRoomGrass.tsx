@@ -4,7 +4,10 @@ import { useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import type { RoomPuzzleState } from '@/components/assists/the-room/theRoomPuzzle';
+import {
+  createRoomPuzzleState,
+  type RoomPuzzleState,
+} from '@/components/assists/the-room/theRoomPuzzle';
 
 /** Blade count on desktop for the whole floor; touch devices get a fraction of this. */
 const DESKTOP_BLADES = 140_000;
@@ -22,6 +25,7 @@ const FOOTPRINT_RADIUS = 0.5;
 const RECOVER_SECONDS = 2.6;
 
 const BASE_TEXTURE = '/grass1024x1024.png';
+const FIELD_GROUND_COLOR = '#2f5a1f';
 
 const vertexShader = /* glsl */ `
 uniform float uTime;
@@ -32,6 +36,8 @@ uniform vec2 uPathA;
 uniform vec2 uPathB;
 uniform float uPathReveal;
 uniform float uHint;
+uniform vec2 uCenter;
+uniform vec2 uWrap;
 
 attribute vec3 aRoot;   // x, z, facing angle
 attribute vec3 aBlade;  // height, width, color variation 0-1
@@ -40,6 +46,8 @@ varying float vT;
 varying float vVariation;
 varying float vTrampled;
 varying float vPatch;
+
+#include <fog_pars_vertex>
 
 float footprintInfluence(vec2 root, vec4 fp, out vec2 pushDir) {
   pushDir = vec2(0.0);
@@ -59,6 +67,14 @@ void main() {
   vVariation = aBlade.z;
 
   vec2 root = aRoot.xy;
+  // Following mode: the patch wraps around the camera so blades stay put in the world
+  // while the field never runs out; blades shrink away toward the patch edge.
+  float edgeFade = 1.0;
+  if (uWrap.x > 0.0) {
+    root = uCenter + mod(root - uCenter + 0.5 * uWrap, uWrap) - 0.5 * uWrap;
+    float r = length(root - uCenter) / (0.5 * min(uWrap.x, uWrap.y));
+    edgeFade = 1.0 - smoothstep(0.4, 1.0, r);
+  }
   vPatch = 0.5 + 0.25 * sin(root.x * 0.7 + sin(root.y * 0.5) * 2.0)
                + 0.25 * sin(root.y * 0.9 + sin(root.x * 0.6) * 1.7);
   float c = cos(aRoot.z);
@@ -116,17 +132,19 @@ void main() {
   float bendAmount = min(length(bend), 0.92);
   bend = length(bend) > 1e-4 ? normalize(bend) * bendAmount : bend;
   // Keep blade length constant: the more it tips over, the lower the tip sits.
-  float h = aBlade.x * sqrt(1.0 - bendAmount * bendAmount);
+  float h = aBlade.x * sqrt(1.0 - bendAmount * bendAmount) * edgeFade;
 
   // Bend grows toward the tip (quadratic) so the root stays planted.
-  vec2 tipOffset = bend * aBlade.x * t * t;
+  vec2 tipOffset = bend * aBlade.x * edgeFade * t * t;
   vec3 world = vec3(
     root.x + across * c + tipOffset.x,
     t * h,
     root.y + across * s + tipOffset.y
   );
 
-  gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
+  vec4 mvPosition = viewMatrix * vec4(world, 1.0);
+  gl_Position = projectionMatrix * mvPosition;
+  #include <fog_vertex>
 }
 `;
 
@@ -135,6 +153,8 @@ varying float vT;
 varying float vVariation;
 varying float vTrampled;
 varying float vPatch;
+
+#include <fog_pars_fragment>
 
 void main() {
   vec3 base = vec3(0.012, 0.04, 0.008);
@@ -153,6 +173,7 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
+  #include <fog_fragment>
 }
 `;
 
@@ -178,35 +199,50 @@ function makeBladeGeometry() {
   return geo;
 }
 
-function bladeCountForDevice() {
+function bladeCountForDevice(desktopBlades: number) {
   const touch =
     typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
-  return Math.round(DESKTOP_BLADES * (touch ? TOUCH_DENSITY : 1));
+  return Math.round(desktopBlades * (touch ? TOUCH_DENSITY : 1));
 }
 
+/**
+ * A lawn of `width` x `depth`. With `followCamera`, that patch of blades travels with the
+ * camera over a ground plane of `groundSize`, so an open field never runs out of grass.
+ */
 export function TheRoomGrass({
   width,
   depth,
-  puzzle,
+  puzzle: sharedPuzzle,
+  followCamera = false,
+  groundSize,
+  bladeCount = DESKTOP_BLADES,
 }: {
   width: number;
   depth: number;
-  puzzle: RoomPuzzleState;
+  puzzle?: RoomPuzzleState;
+  followCamera?: boolean;
+  groundSize?: number;
+  /** Blade count on desktop; touch devices get a fraction of this. */
+  bladeCount?: number;
 }) {
   const camera = useThree((s) => s.camera);
   const footprints = useRef<{ x: number; z: number; time: number }[]>([]);
   const lastPrint = useRef<THREE.Vector2 | null>(null);
+  const ownPuzzle = useMemo(createRoomPuzzleState, []);
+  const puzzle = sharedPuzzle ?? ownPuzzle;
+  const groundWidth = groundSize ?? width;
+  const groundDepth = groundSize ?? depth;
 
   const baseTexture = useTexture(BASE_TEXTURE);
   useMemo(() => {
     baseTexture.wrapS = baseTexture.wrapT = THREE.RepeatWrapping;
-    baseTexture.repeat.set(width / 2, depth / 2);
+    baseTexture.repeat.set(groundWidth / 2, groundDepth / 2);
     baseTexture.colorSpace = THREE.SRGBColorSpace;
     baseTexture.anisotropy = 8;
-  }, [baseTexture, width, depth]);
+  }, [baseTexture, groundWidth, groundDepth]);
 
   const geometry = useMemo(() => {
-    const count = bladeCountForDevice();
+    const count = bladeCountForDevice(bladeCount);
     const geo = makeBladeGeometry();
     const roots = new Float32Array(count * 3);
     const blades = new Float32Array(count * 3);
@@ -230,7 +266,7 @@ export function TheRoomGrass({
     geo.setAttribute('aBlade', new THREE.InstancedBufferAttribute(blades, 3));
     geo.instanceCount = count;
     return geo;
-  }, [width, depth]);
+  }, [width, depth, bladeCount]);
 
   const material = useMemo(
     () =>
@@ -238,7 +274,11 @@ export function TheRoomGrass({
         vertexShader,
         fragmentShader,
         side: THREE.DoubleSide,
+        fog: true,
         uniforms: {
+          ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+          uCenter: { value: new THREE.Vector2() },
+          uWrap: { value: new THREE.Vector2() },
           uTime: { value: 0 },
           uFootprints: {
             value: Array.from({ length: FOOTPRINTS }, () => new THREE.Vector4(0, 0, 0, 0)),
@@ -269,6 +309,8 @@ export function TheRoomGrass({
     const feet = new THREE.Vector2(camera.position.x, camera.position.z);
 
     const u = material.uniforms;
+    (u.uCenter.value as THREE.Vector2).copy(feet);
+    (u.uWrap.value as THREE.Vector2).set(followCamera ? width : 0, followCamera ? depth : 0);
     u.uCalm.value = puzzle.calm;
     u.uPathReveal.value = puzzle.pathReveal;
     u.uHint.value = puzzle.hint;
@@ -297,8 +339,14 @@ export function TheRoomGrass({
   return (
     <>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.001, 0]}>
-        <planeGeometry args={[width, depth]} />
-        <meshStandardMaterial map={baseTexture} roughness={1} color="#9fb88f" />
+        <planeGeometry args={[groundWidth, groundDepth]} />
+        {followCamera ? (
+          // Tiled out to the horizon the texture averages to near-black, so the far field
+          // is a flat tone matched to the blades instead.
+          <meshBasicMaterial color={FIELD_GROUND_COLOR} toneMapped={false} />
+        ) : (
+          <meshStandardMaterial map={baseTexture} roughness={1} color="#9fb88f" />
+        )}
       </mesh>
       {/* Every blade is drawn in one call; culling is off because the geometry's bounds are
           a single blade, which would otherwise hide the whole lawn. */}

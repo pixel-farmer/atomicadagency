@@ -11,19 +11,41 @@ const GLASS_TINT = '#b8d4ec';
 /** Clear space below each window (meters). The 8 m frame then leaves about 2 m above it too. */
 const WINDOW_MARGIN = 2;
 /** Two centers along Z on the +X (right) wall. */
-const WINDOW_Z = [-4.1, 4.1] as const;
+export const WINDOW_Z = [-4.1, 4.1] as const;
 
 /**
  * Measured from arched-window.glb (meters, standing on y = 0, centered on x = 0): a semicircular
  * arch springing at y = 5.95 from a 4.26 m wide frame, 0.26 m deep. The glass is cut a little
  * smaller than the outer edge so the frame hides its border.
  */
-const GLASS_HALF_WIDTH = 2.06;
-const ARCH_SPRING_Y = 5.95;
-const GLASS_BOTTOM_Y = 0.02;
+export const GLASS_HALF_WIDTH = 2.06;
+export const ARCH_SPRING_Y = 5.95;
+export const GLASS_BOTTOM_Y = 0.02;
 const FRAME_HALF_DEPTH = 0.129;
 const FRAME_BOTTOM_Y = -0.041;
-const FRAME_HEIGHT = 8.117;
+
+/** Height of each window group's origin above the floor; the glass outline is relative to it. */
+export const WINDOW_BASE_Y = WINDOW_MARGIN - FRAME_BOTTOM_Y;
+
+export function windowWallX(roomWidth: number) {
+  return roomWidth / 2 - FRAME_HALF_DEPTH - 0.005;
+}
+
+/** Traces an arched opening (flat bottom, semicircular top) centered on `cx`. */
+export function traceArchedOpening<T extends THREE.Path>(
+  path: T,
+  cx: number,
+  halfWidth: number,
+  springY: number,
+  bottomY: number,
+) {
+  path.moveTo(cx - halfWidth, bottomY);
+  path.lineTo(cx + halfWidth, bottomY);
+  path.lineTo(cx + halfWidth, springY);
+  path.absarc(cx, springY, halfWidth, 0, Math.PI, false);
+  path.lineTo(cx - halfWidth, bottomY);
+  return path;
+}
 
 useGLTF.preload(FRAME_PATH);
 
@@ -65,12 +87,7 @@ function useWindowMaterials() {
 }
 
 function archedOutline(halfWidth: number, springY: number, bottomY: number) {
-  const shape = new THREE.Shape();
-  shape.moveTo(-halfWidth, bottomY);
-  shape.lineTo(halfWidth, bottomY);
-  shape.lineTo(halfWidth, springY);
-  shape.absarc(0, springY, halfWidth, 0, Math.PI, false);
-  shape.lineTo(-halfWidth, bottomY);
+  const shape = traceArchedOpening(new THREE.Shape(), 0, halfWidth, springY, bottomY);
   return new THREE.ShapeGeometry(shape, 48);
 }
 
@@ -81,7 +98,10 @@ function ArchedWindow({ materials }: { materials: ReturnType<typeof useWindowMat
   const frame = useMemo(() => {
     const clone = scene.clone(true);
     clone.traverse((obj) => {
-      if ((obj as THREE.Mesh).isMesh) (obj as THREE.Mesh).material = materials.frame;
+      if (!(obj as THREE.Mesh).isMesh) return;
+      (obj as THREE.Mesh).material = materials.frame;
+      // The bars throw their pattern into the sunlight on the floor.
+      obj.castShadow = true;
     });
     return clone;
   }, [scene, materials.frame]);
@@ -104,26 +124,14 @@ function ArchedWindow({ materials }: { materials: ReturnType<typeof useWindowMat
 
 export function TheRoomRightWallWindows({ roomWidth }: { roomWidth: number }) {
   const materials = useWindowMaterials();
-  const wallX = roomWidth / 2 - FRAME_HALF_DEPTH - 0.005;
-  const baseY = WINDOW_MARGIN - FRAME_BOTTOM_Y;
-  const centerY = WINDOW_MARGIN + FRAME_HEIGHT / 2;
+  const wallX = windowWallX(roomWidth);
 
   return (
     <>
       {WINDOW_Z.map((z) => (
-        <group key={z} position={[wallX, baseY, z]}>
+        <group key={z} position={[wallX, WINDOW_BASE_Y, z]}>
           <ArchedWindow materials={materials} />
         </group>
-      ))}
-      {WINDOW_Z.map((z) => (
-        <pointLight
-          key={`light-${z}`}
-          position={[wallX - 1.2, centerY, z]}
-          intensity={3.5}
-          distance={12}
-          decay={2}
-          color="#e8f2ff"
-        />
       ))}
     </>
   );

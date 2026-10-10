@@ -13,6 +13,7 @@ void import('@/components/assists/black-water-koi').then(() => undefined);
 void import('@/components/assists/rolling-shore').then(() => undefined);
 void import('@/components/assists/starfield').then(() => undefined);
 void import('@/components/assists/the-room').then(() => undefined);
+void import('@/components/assists/open-field').then(() => undefined);
 
 const BlackWaterKoiExperience = dynamic(
 
@@ -49,10 +50,21 @@ const TheRoomExperience = dynamic(
   { ssr: false },
 );
 
+const OpenFieldExperience = dynamic(
+  () => import('@/components/assists/open-field').then((m) => m.OpenFieldExperience),
+  { ssr: false },
+);
+
 
 
 /** One circle per entry; the grid is 3 wide, so entry 4 starts a new row under the first. */
-const ASSIST_CAPTIONS = ['BLACK WATER KOI', 'OCEAN WAVES', 'STARFIELD', 'THE ROOM'] as const;
+const ASSIST_CAPTIONS = [
+  'BLACK WATER KOI',
+  'OCEAN WAVES',
+  'STARFIELD',
+  'THE ROOM',
+  'OPEN FIELD',
+] as const;
 
 
 
@@ -255,8 +267,10 @@ function AssistGrowingOverlay({
   const showRollingShore = assistIndex === 1 && sceneReady;
   const showStarfield = assistIndex === 2 && sceneReady;
   const showTheRoom = assistIndex === 3 && sceneReady;
+  const showOpenField = assistIndex === 4 && sceneReady;
   /** Scenes bright enough that the close button needs its dark style. */
-  const lightScene = (assistIndex === 1 || assistIndex === 3) && phase === 'open';
+  const lightScene =
+    (assistIndex === 1 || assistIndex === 3 || assistIndex === 4) && phase === 'open';
   const circleHidden = phase === 'open';
   const circleScale = phase === 'exiting' ? 1 : endScale;
   const overlayOpenBg =
@@ -267,7 +281,9 @@ function AssistGrowingOverlay({
           ? 'bg-[#03040c]'
           : assistIndex === 3
             ? 'bg-[#a9c2d4]'
-            : 'bg-black'
+            : assistIndex === 4
+              ? 'bg-[#cfdde3]'
+              : 'bg-black'
       : 'bg-transparent';
 
   return (
@@ -324,6 +340,12 @@ function AssistGrowingOverlay({
         </div>
       ) : null}
 
+      {showOpenField ? (
+        <div className="absolute inset-0 z-[1]">
+          <OpenFieldExperience />
+        </div>
+      ) : null}
+
 
 
       <motion.div
@@ -356,7 +378,7 @@ function AssistGrowingOverlay({
           if (phase !== 'entering' || expandDone.current) return;
           expandDone.current = true;
           setSceneReady(true);
-          if (assistIndex >= 0 && assistIndex <= 3) {
+          if (assistIndex >= 0 && assistIndex <= 4) {
             requestAnimationFrame(() => {
               requestAnimationFrame(() => setPhase('open'));
             });

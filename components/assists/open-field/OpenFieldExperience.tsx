@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { CanvasWrapper } from '@/components/canvas';
+import { OpenFieldScene } from '@/components/assists/open-field/OpenFieldScene';
 import { TheRoomJoystick } from '@/components/assists/the-room/TheRoomJoystick';
-import { TheRoomScene } from '@/components/assists/the-room/TheRoomScene';
+import { TheRoomSound } from '@/components/assists/the-room/TheRoomSound';
 
-export function TheRoomExperience() {
+export function OpenFieldExperience() {
   const [touch, setTouch] = useState(false);
 
   useEffect(() => {
@@ -17,18 +18,18 @@ export function TheRoomExperience() {
   }, []);
 
   return (
-    <div className="relative h-full w-full bg-[#96babc]">
+    <div className="relative h-full w-full bg-[#cfdde3]">
       <CanvasWrapper
         wrapperClassName="relative h-full w-full"
         canvasClassName="h-full w-full touch-none"
-        cameraPosition={[0, 1.6, 6]}
+        cameraPosition={[0, 2.9, 0]}
         cameraFov={60}
         dpr={[1, 1.75]}
-        shadows
         transparent={false}
       >
-        <TheRoomScene />
+        <OpenFieldScene />
       </CanvasWrapper>
+      <TheRoomSound src="/room-thin.ogg" />
       {touch && (
         <TheRoomJoystick className="absolute bottom-[calc(clamp(1.25rem,4vh,2.5rem)+2rem)] left-[clamp(1rem,4vw,2.5rem)]" />
       )}

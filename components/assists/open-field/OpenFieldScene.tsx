@@ -1,28 +1,32 @@
 'use client';
 
-import { useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { TheRoomSunlight } from '@/components/assists/the-room/TheRoomSunlight';
-import { TheRoomRightWallWindows } from '@/components/assists/the-room/TheRoomWindows';
+import { TheRoomGrass } from '@/components/assists/the-room/TheRoomGrass';
 import { roomTouchInput } from '@/components/assists/the-room/theRoomPuzzle';
 
-export const ROOM_WIDTH = 14;
-export const ROOM_DEPTH = 18;
-export const ROOM_HEIGHT = 12;
-
 const EYE_HEIGHT = 2.9;
-const START_POSITION = new THREE.Vector3(0, EYE_HEIGHT, 6);
+const START_POSITION = new THREE.Vector3(0, EYE_HEIGHT, 0);
 
-/** How close the camera may get to the walls. */
-const BODY_RADIUS = 0.45;
+/** Blades live in a patch this size around the camera; the ground plane goes on far beyond. */
+const GRASS_PATCH = 28;
+const GRASS_BLADES = 300_000;
+const GROUND_SIZE = 800;
+/** How far from the start you can wander before the field gently holds you back. */
+const FIELD_LIMIT = 300;
+
 const WALK_SPEED = 3.2;
 const TURN_SPEED = 1.9;
 /** Higher = snappier start/stop; lower = more glide. */
 const MOVE_SMOOTHING = 10;
 const DRAG_LOOK_SENSITIVITY = 0.0035;
 const MAX_PITCH = 1.2;
+
+const HORIZON_COLOR = '#cfdde3';
+const ZENITH_COLOR = '#7fa8c9';
+const FOG_NEAR = 4;
+const FOG_FAR = 70;
 
 type Keys = {
   forward: boolean;
@@ -51,7 +55,7 @@ function isTypingTarget(target: EventTarget | null) {
   );
 }
 
-function FirstPersonControls() {
+function FieldControls() {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
   const keys = useRef<Keys>({
@@ -153,10 +157,8 @@ function FirstPersonControls() {
 
     velocity.current.lerp(wish, 1 - Math.exp(-MOVE_SMOOTHING * delta));
     pos.addScaledVector(velocity.current, delta);
-    const maxX = ROOM_WIDTH / 2 - BODY_RADIUS;
-    const maxZ = ROOM_DEPTH / 2 - BODY_RADIUS;
-    pos.x = THREE.MathUtils.clamp(pos.x, -maxX, maxX);
-    pos.z = THREE.MathUtils.clamp(pos.z, -maxZ, maxZ);
+    pos.x = THREE.MathUtils.clamp(pos.x, -FIELD_LIMIT, FIELD_LIMIT);
+    pos.z = THREE.MathUtils.clamp(pos.z, -FIELD_LIMIT, FIELD_LIMIT);
     pos.y = EYE_HEIGHT;
 
     camera.rotation.set(pitch.current, yaw.current, 0, 'YXZ');
@@ -165,72 +167,73 @@ function FirstPersonControls() {
   return null;
 }
 
-const WALL_COLOR = '#8ba2a8';
-const CEILING_COLOR = '#c8d6df';
-const FLOOR_COLOR = '#c4c0b8';
-const FLOOR_TEXTURE = '/wood-diamond.jpg';
-/** Meters of floor covered by one repeat of the texture (four parquet panels). */
-const FLOOR_TILE_SIZE = 2.5;
-
-function WoodFloor() {
-  const texture = useTexture(FLOOR_TEXTURE);
-  useMemo(() => {
-    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(ROOM_WIDTH / FLOOR_TILE_SIZE, ROOM_DEPTH / FLOOR_TILE_SIZE);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 8;
-    texture.needsUpdate = true;
-  }, [texture]);
-
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]} receiveShadow>
-      <planeGeometry args={[ROOM_WIDTH, ROOM_DEPTH]} />
-      <meshStandardMaterial map={texture} roughness={0.7} />
-    </mesh>
-  );
-}
-
-function RoomShell() {
-  // BoxGeometry face order: +x, -x, +y (ceiling), -y (floor), +z, -z.
-  const materials = useMemo(() => {
-    // A little self-glow keeps the colors from going gray where the single light barely reaches.
-    const surface = (color: string, glow: number) =>
-      new THREE.MeshStandardMaterial({
-        color,
-        emissive: color,
-        emissiveIntensity: glow,
-        roughness: 0.95,
+/** A gradient dome that rides along with the camera, so the horizon never gets closer. */
+function SkyDome() {
+  const camera = useThree((s) => s.camera);
+  const ref = useRef<THREE.Mesh>(null);
+  const material = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
         side: THREE.BackSide,
-      });
-    const wall = surface(WALL_COLOR, 0.35);
-    const ceiling = surface(CEILING_COLOR, 0.55);
-    const floor = surface(FLOOR_COLOR, 0.25);
-    return [wall, wall, ceiling, floor, wall, wall];
-  }, []);
+        depthWrite: false,
+        uniforms: {
+          uHorizon: { value: new THREE.Color(HORIZON_COLOR) },
+          uZenith: { value: new THREE.Color(ZENITH_COLOR) },
+        },
+        vertexShader: /* glsl */ `
+          varying vec3 vDir;
+          void main() {
+            vDir = normalize(position);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: /* glsl */ `
+          uniform vec3 uHorizon;
+          uniform vec3 uZenith;
+          varying vec3 vDir;
+          void main() {
+            float h = clamp(vDir.y, 0.0, 1.0);
+            gl_FragColor = vec4(mix(uHorizon, uZenith, pow(h, 0.6)), 1.0);
+            #include <colorspace_fragment>
+          }
+        `,
+      }),
+    [],
+  );
 
-  useEffect(() => () => new Set(materials).forEach((m) => m.dispose()), [materials]);
+  useEffect(() => () => material.dispose(), [material]);
+
+  useFrame(() => {
+    ref.current?.position.set(camera.position.x, 0, camera.position.z);
+  });
 
   return (
-    <mesh position={[0, ROOM_HEIGHT / 2, 0]} material={materials} receiveShadow>
-      <boxGeometry args={[ROOM_WIDTH, ROOM_HEIGHT, ROOM_DEPTH]} />
+    <mesh ref={ref} material={material} renderOrder={-1} frustumCulled={false}>
+      <sphereGeometry args={[450, 32, 16]} />
     </mesh>
   );
 }
 
-export function TheRoomScene() {
+export function OpenFieldScene() {
   return (
     <>
-      <color attach="background" args={[WALL_COLOR]} />
-      <hemisphereLight args={['#f2f7fa', '#9aa892', 1.1]} />
+      <color attach="background" args={[HORIZON_COLOR]} />
+      <fog attach="fog" args={[HORIZON_COLOR, FOG_NEAR, FOG_FAR]} />
+      <hemisphereLight args={['#f2f7fa', '#9aa892', 1.2]} />
+      <directionalLight position={[30, 40, 20]} intensity={1.4} color="#fff6e8" />
 
-      <RoomShell />
-      <TheRoomSunlight roomWidth={ROOM_WIDTH} roomDepth={ROOM_DEPTH} roomHeight={ROOM_HEIGHT} />
+      <SkyDome />
       <Suspense fallback={null}>
-        <TheRoomRightWallWindows roomWidth={ROOM_WIDTH} />
-        <WoodFloor />
+        <TheRoomGrass
+          width={GRASS_PATCH}
+          depth={GRASS_PATCH}
+          followCamera
+          groundSize={GROUND_SIZE}
+          bladeCount={GRASS_BLADES}
+        />
       </Suspense>
 
-      <FirstPersonControls />
+      <FieldControls />
     </>
   );
 }

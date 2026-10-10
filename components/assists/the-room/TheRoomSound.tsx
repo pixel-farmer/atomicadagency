@@ -3,10 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { RoomPuzzleState } from '@/components/assists/the-room/theRoomPuzzle';
 
-const THIN_SRC = '/room-thin.ogg';
-/** The deeper layer that fades in with calm. Set to e.g. '/room-full.ogg' once the file exists. */
-const FULL_SRC: string | null = null;
-
 const THIN_VOLUME = 0.6;
 const FULL_VOLUME = 0.7;
 /** The wind swells by this fraction as the room calms and the breeze turns toward the visitor. */
@@ -98,8 +94,19 @@ function SoundOffIcon() {
 
 type RoomAudio = { ctx: AudioContext; master: GainNode };
 
-/** Plays the room's wind (and later the full layer), following the puzzle's calm, with an on/off button. */
-export function TheRoomSound({ puzzle }: { puzzle: RoomPuzzleState }) {
+/**
+ * Loops `src` (plus an optional deeper `fullSrc` layer) with an on/off button. With a puzzle,
+ * the wind swells and the full layer fades in as calm rises.
+ */
+export function TheRoomSound({
+  src,
+  fullSrc = null,
+  puzzle,
+}: {
+  src: string;
+  fullSrc?: string | null;
+  puzzle?: RoomPuzzleState;
+}) {
   const audio = useRef<RoomAudio | null>(null);
   const [soundOn, setSoundOn] = useState(true);
   const [running, setRunning] = useState(false);
@@ -129,8 +136,8 @@ export function TheRoomSound({ puzzle }: { puzzle: RoomPuzzleState }) {
       source.start();
       sources.push(source);
     };
-    void load(THIN_SRC, thinGain).catch(() => {});
-    if (FULL_SRC) void load(FULL_SRC, fullGain).catch(() => {});
+    void load(src, thinGain).catch(() => {});
+    if (fullSrc) void load(fullSrc, fullGain).catch(() => {});
 
     ctx.onstatechange = () => setRunning(ctx.state === 'running');
     audio.current = { ctx, master };
@@ -138,8 +145,9 @@ export function TheRoomSound({ puzzle }: { puzzle: RoomPuzzleState }) {
     // Layer volumes follow calm; ten updates a second with a smoothing curve is plenty.
     const follow = window.setInterval(() => {
       const now = ctx.currentTime;
-      thinGain.gain.setTargetAtTime(THIN_VOLUME * (1 + THIN_CALM_SWELL * puzzle.calm), now, 0.4);
-      fullGain.gain.setTargetAtTime(FULL_VOLUME * puzzle.calm, now, 0.5);
+      const calm = puzzle?.calm ?? 0;
+      thinGain.gain.setTargetAtTime(THIN_VOLUME * (1 + THIN_CALM_SWELL * calm), now, 0.4);
+      fullGain.gain.setTargetAtTime(FULL_VOLUME * calm, now, 0.5);
     }, 100);
 
     return () => {
@@ -150,7 +158,7 @@ export function TheRoomSound({ puzzle }: { puzzle: RoomPuzzleState }) {
       void ctx.close();
       audio.current = null;
     };
-  }, [puzzle]);
+  }, [src, fullSrc, puzzle]);
 
   useEffect(() => {
     const a = audio.current;
@@ -205,7 +213,7 @@ export function TheRoomSound({ puzzle }: { puzzle: RoomPuzzleState }) {
       }}
       className="pointer-events-auto absolute bottom-[clamp(1.25rem,4vh,2.5rem)] right-[clamp(1rem,4vw,2.5rem)] z-20 flex h-10 w-10 items-center justify-center rounded-full border border-white/90 bg-black/35 text-white shadow-sm backdrop-blur-sm transition hover:bg-white/10 focus:outline-none focus-visible:ring-1 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
       aria-pressed={audible}
-      aria-label={audible ? 'Turn off room sound' : 'Turn on room sound'}
+      aria-label={audible ? 'Turn off sound' : 'Turn on sound'}
     >
       {audible ? <SoundOnIcon /> : <SoundOffIcon />}
     </button>
