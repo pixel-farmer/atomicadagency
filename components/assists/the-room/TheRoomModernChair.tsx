@@ -6,7 +6,7 @@ import { Box3, Vector3 } from 'three';
 
 const CHAIR_PATH = '/ModernChair.glb';
 /** The model is authored in meters, so 1 keeps it life-size. */
-const CHAIR_SCALE = 1;
+const CHAIR_SCALE = 3;
 
 useGLTF.preload(CHAIR_PATH);
 

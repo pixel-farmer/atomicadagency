@@ -24,7 +24,7 @@ export const ROOM_WIDTH = 14;
 export const ROOM_DEPTH = 18;
 export const ROOM_HEIGHT = 12;
 
-const EYE_HEIGHT = 1.6;
+const EYE_HEIGHT = 2.9;
 const START_POSITION = new THREE.Vector3(0, EYE_HEIGHT, 6);
 
 /** How close the camera may get to the walls. */
