@@ -4,7 +4,11 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { TheRoomGrass } from '@/components/assists/the-room/TheRoomGrass';
-import { TheRoomModernChair } from '@/components/assists/the-room/TheRoomModernChair';
+import {
+  CHAIR_SCALE,
+  CHAIR_SEAT_HEIGHT,
+  TheRoomModernChair,
+} from '@/components/assists/the-room/TheRoomModernChair';
 import { TheRoomRightWallWindows } from '@/components/assists/the-room/TheRoomWindows';
 import {
   CALM_FALL_RATE,
@@ -42,10 +46,10 @@ const MAX_DOLLY_FOV = 95;
 const DOLLY_STRENGTH = 0.6;
 
 /** Where the glide ends: standing in front of the chair, before turning to sit. */
-const APPROACH_DISTANCE = 1;
+const APPROACH_DISTANCE = 0.5 + 0.5 * CHAIR_SCALE;
 const GLIDE_SPEED = 0.9;
-const SEAT_OFFSET = 0.08;
-const SEATED_EYE_HEIGHT = 1.15;
+const SEAT_OFFSET = 0.08 * CHAIR_SCALE;
+const SEATED_EYE_HEIGHT = CHAIR_SEAT_HEIGHT + 0.75;
 /** Seated, facing the room and turned a little toward the windows. */
 const SIT_YAW = Math.PI + 0.45;
 const SIT_PITCH = -0.04;
