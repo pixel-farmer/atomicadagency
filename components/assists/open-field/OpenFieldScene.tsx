@@ -5,6 +5,7 @@ import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { TheRoomGrass } from '@/components/assists/the-room/TheRoomGrass';
 import { roomTouchInput } from '@/components/assists/the-room/theRoomPuzzle';
+import { skyCloudsGlsl } from '@/components/assists/the-room/skyClouds';
 
 const EYE_HEIGHT = 2.9;
 const START_POSITION = new THREE.Vector3(0, EYE_HEIGHT, 0);
@@ -25,6 +26,8 @@ const MAX_PITCH = 1.2;
 
 const HORIZON_COLOR = '#cfdde3';
 const ZENITH_COLOR = '#7fa8c9';
+/** Multiplies the shared cloud drift; 1 matches the sky seen through The Room's windows. */
+const CLOUD_DRIFT_SPEED = 3;
 const FOG_NEAR = 4;
 const FOG_FAR = 70;
 
@@ -177,6 +180,7 @@ function SkyDome() {
         side: THREE.BackSide,
         depthWrite: false,
         uniforms: {
+          uTime: { value: 0 },
           uHorizon: { value: new THREE.Color(HORIZON_COLOR) },
           uZenith: { value: new THREE.Color(ZENITH_COLOR) },
         },
@@ -188,12 +192,13 @@ function SkyDome() {
           }
         `,
         fragmentShader: /* glsl */ `
+          uniform float uTime;
           uniform vec3 uHorizon;
           uniform vec3 uZenith;
           varying vec3 vDir;
+          ${skyCloudsGlsl}
           void main() {
-            float h = clamp(vDir.y, 0.0, 1.0);
-            gl_FragColor = vec4(mix(uHorizon, uZenith, pow(h, 0.6)), 1.0);
+            gl_FragColor = vec4(skyWithClouds(normalize(vDir), uTime, uHorizon, uZenith), 1.0);
             #include <colorspace_fragment>
           }
         `,
@@ -203,8 +208,9 @@ function SkyDome() {
 
   useEffect(() => () => material.dispose(), [material]);
 
-  useFrame(() => {
+  useFrame((state) => {
     ref.current?.position.set(camera.position.x, 0, camera.position.z);
+    material.uniforms.uTime.value = state.clock.getElapsedTime() * CLOUD_DRIFT_SPEED;
   });
 
   return (

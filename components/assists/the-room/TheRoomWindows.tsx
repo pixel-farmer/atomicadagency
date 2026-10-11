@@ -1,12 +1,16 @@
 'use client';
 
 import { useGLTF } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
+import { skyCloudsGlsl } from '@/components/assists/the-room/skyClouds';
 
 const FRAME_PATH = '/arched-window.glb';
 const FRAME_COLOR = '#f3f0ea';
 const GLASS_TINT = '#b8d4ec';
+const SKY_HORIZON = '#a9cbe3';
+const SKY_ZENITH = '#7fb0d6';
 
 /** Clear space below each window (meters). The 8 m frame then leaves about 2 m above it too. */
 const WINDOW_MARGIN = 2;
@@ -70,10 +74,34 @@ function useWindowMaterials() {
       envMapIntensity: 0.6,
       side: THREE.DoubleSide,
     });
-    const sky = new THREE.MeshBasicMaterial({
-      color: '#8eb9d9',
-      toneMapped: false,
+    // Colored by view direction rather than position, so the sky and clouds read as far away.
+    const sky = new THREE.ShaderMaterial({
       side: THREE.DoubleSide,
+      uniforms: {
+        uTime: { value: 0 },
+        uHorizon: { value: new THREE.Color(SKY_HORIZON) },
+        uZenith: { value: new THREE.Color(SKY_ZENITH) },
+      },
+      vertexShader: /* glsl */ `
+        varying vec3 vWorldPos;
+        void main() {
+          vec4 world = modelMatrix * vec4(position, 1.0);
+          vWorldPos = world.xyz;
+          gl_Position = projectionMatrix * viewMatrix * world;
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform float uTime;
+        uniform vec3 uHorizon;
+        uniform vec3 uZenith;
+        varying vec3 vWorldPos;
+        ${skyCloudsGlsl}
+        void main() {
+          vec3 dir = normalize(vWorldPos - cameraPosition);
+          gl_FragColor = vec4(skyWithClouds(dir, uTime, uHorizon, uZenith), 1.0);
+          #include <colorspace_fragment>
+        }
+      `,
     });
     return { frame, glass, sky };
   }, []);
@@ -82,6 +110,10 @@ function useWindowMaterials() {
     () => () => Object.values(materials).forEach((m) => m.dispose()),
     [materials],
   );
+
+  useFrame((state) => {
+    materials.sky.uniforms.uTime.value = state.clock.getElapsedTime();
+  });
 
   return materials;
 }
