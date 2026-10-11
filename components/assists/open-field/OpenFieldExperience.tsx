@@ -29,7 +29,7 @@ export function OpenFieldExperience() {
       >
         <OpenFieldScene />
       </CanvasWrapper>
-      <TheRoomSound src="/room-thin.ogg" />
+      <TheRoomSound src="/wind.ogg" />
       {touch && (
         <TheRoomJoystick className="absolute bottom-[calc(clamp(1.25rem,4vh,2.5rem)+2rem)] left-[clamp(1rem,4vw,2.5rem)]" />
       )}
