@@ -14,6 +14,7 @@ void import('@/components/assists/rolling-shore').then(() => undefined);
 void import('@/components/assists/starfield').then(() => undefined);
 void import('@/components/assists/the-room').then(() => undefined);
 void import('@/components/assists/open-field').then(() => undefined);
+void import('@/components/assists/sapphires').then(() => undefined);
 
 const BlackWaterKoiExperience = dynamic(
 
@@ -55,6 +56,11 @@ const OpenFieldExperience = dynamic(
   { ssr: false },
 );
 
+const SapphiresExperience = dynamic(
+  () => import('@/components/assists/sapphires').then((m) => m.SapphiresExperience),
+  { ssr: false },
+);
+
 
 
 /** One circle per entry; the grid is 3 wide, so entry 4 starts a new row under the first. */
@@ -64,6 +70,7 @@ const ASSIST_CAPTIONS = [
   'STARFIELD',
   'THE ROOM',
   'OPEN FIELD',
+  'SAPPHIRES',
 ] as const;
 
 
@@ -268,6 +275,7 @@ function AssistGrowingOverlay({
   const showStarfield = assistIndex === 2 && sceneReady;
   const showTheRoom = assistIndex === 3 && sceneReady;
   const showOpenField = assistIndex === 4 && sceneReady;
+  const showSapphires = assistIndex === 5 && sceneReady;
   /** Scenes bright enough that the close button needs its dark style. */
   const lightScene =
     (assistIndex === 1 || assistIndex === 3 || assistIndex === 4) && phase === 'open';
@@ -346,6 +354,12 @@ function AssistGrowingOverlay({
         </div>
       ) : null}
 
+      {showSapphires ? (
+        <div className="absolute inset-0 z-[1]">
+          <SapphiresExperience />
+        </div>
+      ) : null}
+
 
 
       <motion.div
@@ -378,7 +392,7 @@ function AssistGrowingOverlay({
           if (phase !== 'entering' || expandDone.current) return;
           expandDone.current = true;
           setSceneReady(true);
-          if (assistIndex >= 0 && assistIndex <= 4) {
+          if (assistIndex >= 0 && assistIndex <= 5) {
             requestAnimationFrame(() => {
               requestAnimationFrame(() => setPhase('open'));
             });
