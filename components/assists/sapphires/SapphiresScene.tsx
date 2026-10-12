@@ -85,9 +85,9 @@ const PRODUCT_KEY = 8;
 /** Faint neutral rim on the product only. */
 const PRODUCT_RIM = 1.1;
 /** Jar diameter. Wider than it is tall. */
-const JAR_WIDTH = 0.9;
+const JAR_WIDTH = 1.05;
 /** Jar body height, not including the lid. */
-const JAR_HEIGHT = 0.5;
+const JAR_HEIGHT = 0.58;
 /** Lid height. A small seam sits between it and the jar. */
 const LID_HEIGHT = 0.18;
 /** Warm pearl. The jar stays out of the blue cast. */
@@ -960,10 +960,10 @@ function brandTexture() {
       cursor += widths[i] + tracking;
     });
   };
-  ctx.font = '500 168px Outfit, Helvetica, sans-serif';
-  drawTracked(BRAND_TEXT, 150, 18);
+  ctx.font = '500 198px Outfit, Helvetica, sans-serif';
+  drawTracked(BRAND_TEXT, 90, 18);
   ctx.fillStyle = 'rgba(15, 24, 43, 0.84)';
-  ctx.font = '500 52px Outfit, Helvetica, sans-serif';
+  ctx.font = '500 152px Outfit, Helvetica, sans-serif';
   drawTracked('CRÈME', 268, 10);
   tex.needsUpdate = true;
   return tex;
@@ -1156,7 +1156,7 @@ function liftGem(intensity: number) {
         `diffuseColor.rgb *= envMapIntensity;
          vec3 lit = mix(diffuseColor.rgb, vec3(1.0), nFresnel);
          float peak = max(lit.r, max(lit.g, lit.b));
-         vec3 sapphire = vec3(0.015, 0.04, 0.1);
+         vec3 sapphire = vec3(0.02, 0.04, 0.1);
          lit = mix(sapphire, lit, smoothstep(0.0, 0.18, peak));
          lit = min(lit, vec3(0.82));
          gl_FragColor = vec4(lit, diffuseColor.a);`,
