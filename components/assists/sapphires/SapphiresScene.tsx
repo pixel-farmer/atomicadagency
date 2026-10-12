@@ -1141,16 +1141,16 @@ function creamGeometry(radius: number, height: number) {
 }
 
 function addCream(root: THREE.Object3D, envMap: THREE.Texture) {
-  let existing: THREE.Mesh | null = null;
-  let jar: THREE.Mesh | null = null;
+  const found: { cream?: THREE.Mesh; jar?: THREE.Mesh } = {};
   root.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
     if (!mesh.isMesh) return;
     const name = mesh.name.toLowerCase();
-    if (name.includes('cream')) existing = mesh;
-    else if (!jar && partRole(mesh.name, '') === 'jar') jar = mesh;
+    if (name.includes('cream')) found.cream = mesh;
+    else if (!found.jar && partRole(mesh.name, '') === 'jar') found.jar = mesh;
   });
 
+  const existing = found.cream;
   if (existing) {
     const previous = Array.isArray(existing.material) ? existing.material : [existing.material];
     previous.forEach((material) => material?.dispose());
@@ -1158,6 +1158,7 @@ function addCream(root: THREE.Object3D, envMap: THREE.Texture) {
     existing.layers.set(PRODUCT_LAYER);
     return;
   }
+  const jar = found.jar;
   if (!jar) return;
 
   root.updateWorldMatrix(true, true);
