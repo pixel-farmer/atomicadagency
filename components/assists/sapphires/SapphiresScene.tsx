@@ -1,7 +1,7 @@
 'use client';
 
 import { useFrame, useThree } from '@react-three/fiber';
-import { Environment, Lightformer, MeshRefractionMaterial } from '@react-three/drei';
+import { Environment, Lightformer, MeshRefractionMaterial, useGLTF } from '@react-three/drei';
 import {
   BloomEffect,
   ChromaticAberrationEffect,
@@ -13,7 +13,7 @@ import {
   ToneMappingMode,
   VignetteEffect,
 } from 'postprocessing';
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { Component, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as THREE from 'three';
 
 /** Large foreground gems at the lower corners of the frame. */
@@ -98,8 +98,42 @@ const LID_COLOR = '#c8ccd2';
 const JAR_ROTATION_SPEED = 0.05;
 /** Word on the front of the jar. */
 const BRAND_TEXT = 'SAPPHIRE';
+/** Where the product base sits inside the slot. The model and the fallback share it. */
+const PRODUCT_BASE_Y = -JAR_HEIGHT * 0.42;
+/** Fitted height of the loaded product, in world units. */
+const PRODUCT_TARGET_HEIGHT = 0.75;
+/** Product model. The procedural jar is used if this fails to load. */
+const PRODUCT_MODEL_URL = '/model/product.glb';
+/** Glass index of refraction. */
+const GLASS_IOR = 1.5;
+/** Glass volume thickness, in the mesh's coordinate space. */
+const GLASS_THICKNESS = 0.2;
+/** Near zero so the jar stays clear, not frosted. */
+const GLASS_ROUGHNESS = 0.02;
+/** Faint cool white. Kept off blue so the glass stays clear. */
+const GLASS_TINT = '#f4f6f8';
+/** How far light travels in the glass before the tint takes hold. */
+const GLASS_ATTENUATION_DISTANCE = 8;
+/** Just under clear, so the cream and the studio reflections stay visible. */
+const GLASS_TRANSMISSION = 0.92;
+/** Neutral studio reflections on the glass. Crisp white strips, no blue. */
+const PRODUCT_ENV_INTENSITY = 1.35;
+/** Cream inside the jar. */
+const CREAM_COLOR = '#f3ece2';
+/** How strongly the cream reflects the neutral studio. Kept low. */
+const CREAM_ENV_INTENSITY = 0.2;
+/** How full the jar is, as a fraction of the inner height. */
+const CREAM_FILL = 0.85;
+/** Gap between the cream and the glass, as a fraction of the inner radius. */
+const CREAM_WALL_GAP = 0.08;
+/** Lid reflections. Low, so the metal does not take a blue cast. */
+const LID_ENV_INTENSITY = 0.3;
+/** When true, the label ignores lights and keeps the texture's own color. */
+const LABEL_UNLIT = false;
+/** How far the product yaws toward the pointer, in radians. */
+const PRODUCT_MOUSE_TURN = 0.18;
 /** Hot center of the backlight. Warm it for ruby, cool it for emerald or diamond. */
-export const CORE_COLOR = '#e7fbff';
+export const CORE_COLOR = '#2e3eb9';
 /** Peak brightness of the core sprite and the point light inside it. */
 const CORE_INTENSITY = 1.2;
 /** How far behind the product the core sits, in world units. */
@@ -603,7 +637,7 @@ function Core() {
 
   return (
     <>
-      <mesh ref={sprite} scale={[8.2, 3.28, 1]} frustumCulled={false} renderOrder={1}>
+      <mesh ref={sprite} scale={[8.4, 4.6, 1]} frustumCulled={false} renderOrder={1}>
         <planeGeometry args={[1, 1]} />
         <shaderMaterial
           ref={material}
@@ -646,8 +680,8 @@ function Core() {
               float edgeNoise = smoothstep(0.18, 0.72, d);
               d += (cloud - 0.5) * 0.62 * edgeNoise;
               d += (wobble - 0.5) * 0.4 * edgeNoise;
-              float hot = exp(-d * d * 160.0);
-              float blue = exp(-d * d * 9.5);
+              float hot = exp(-d * d * 14.0);
+              float blue = exp(-d * d * 2.8);
               float navy = exp(-d * d * 1.35) * smoothstep(1.3, 0.2, d);
               vec3 deep = mix(uBlue, vec3(0.05, 0.12, 0.55), 0.85);
               vec3 col = uGlow * navy * 0.2 + deep * blue * 0.8 + uCore * hot * 0.7;
@@ -990,103 +1024,401 @@ function shadeJar(shader: { vertexShader: string; fragmentShader: string }) {
     );
 }
 
-function Product() {
+let productNamesLogged = false;
+
+function partRole(meshName: string, materialName: string) {
+  const find = (value: string) => {
+    const name = value.toLowerCase();
+    if (name.includes('label')) return 'label' as const;
+    if (name.includes('lid')) return 'lid' as const;
+    if (name.includes('jar')) return 'jar' as const;
+    return null;
+  };
+  return find(meshName) ?? find(materialName);
+}
+
+function cloneProduct(source: THREE.Object3D) {
+  const root = source.clone(true);
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry = mesh.geometry.clone();
+    if (Array.isArray(mesh.material)) mesh.material = mesh.material.map((material) => material.clone());
+    else mesh.material = mesh.material.clone();
+  });
+  return root;
+}
+
+function fitProduct(root: THREE.Object3D) {
+  root.position.set(0, 0, 0);
+  root.rotation.set(0, 0, 0);
+  root.scale.set(1, 1, 1);
+  root.updateWorldMatrix(true, true);
+  const box = new THREE.Box3().setFromObject(root);
+  const size = box.getSize(new THREE.Vector3());
+  const uniform = size.y > 1e-5 ? PRODUCT_TARGET_HEIGHT / size.y : 1;
+  root.scale.setScalar(uniform);
+  root.updateWorldMatrix(true, true);
+  const fitted = new THREE.Box3().setFromObject(root);
+  const center = fitted.getCenter(new THREE.Vector3());
+  root.position.set(-center.x, -fitted.min.y, -center.z);
+  return fitted.max.x - fitted.min.x;
+}
+
+function buildProductStudio(gl: THREE.WebGLRenderer) {
+  const room = new THREE.Scene();
+  room.background = new THREE.Color('#1e1e22');
+  const shell = new THREE.Mesh(
+    new THREE.BoxGeometry(24, 24, 24),
+    new THREE.MeshBasicMaterial({ color: '#232328', side: THREE.BackSide }),
+  );
+  room.add(shell);
+
+  const addStrip = (color: string, intensity: number, position: THREE.Vector3, scale: THREE.Vector2) => {
+    const material = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, toneMapped: false });
+    material.color.multiplyScalar(intensity);
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+    mesh.position.copy(position);
+    mesh.scale.set(scale.x, scale.y, 1);
+    mesh.lookAt(0, 0, 0);
+    room.add(mesh);
+  };
+
+  addStrip('#ffffff', 8, new THREE.Vector3(-3.2, 1.2, 4.2), new THREE.Vector2(0.28, 7));
+  addStrip('#fff2df', 7, new THREE.Vector3(3.4, 0.8, 3.6), new THREE.Vector2(0.32, 6.2));
+  addStrip('#ffffff', 6, new THREE.Vector3(0.2, 4.6, 1.4), new THREE.Vector2(8, 0.28));
+  addStrip('#fff6ea', 5.5, new THREE.Vector3(-1.6, 2.2, -4.2), new THREE.Vector2(0.36, 5));
+  addStrip('#f4f4f2', 1.35, new THREE.Vector3(0.4, 1.6, 6.5), new THREE.Vector2(9, 6));
+
+  const target = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType });
+  target.texture.mapping = THREE.CubeReflectionMapping;
+  const camera = new THREE.CubeCamera(0.1, 40, target);
+  const currentTarget = gl.getRenderTarget();
+  const currentFace = gl.getActiveCubeFace();
+  const currentMip = gl.getActiveMipmapLevel();
+  camera.update(gl, room);
+  gl.setRenderTarget(currentTarget, currentFace, currentMip);
+
+  room.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry.dispose();
+    (mesh.material as THREE.Material).dispose();
+  });
+
+  return target.texture;
+}
+
+function useProductStudio() {
+  const gl = useThree((s) => s.gl);
+  const envMap = useMemo(() => buildProductStudio(gl), [gl]);
+  useEffect(() => () => envMap.dispose(), [envMap]);
+  return envMap;
+}
+
+function creamMaterial(envMap: THREE.Texture) {
+  return new THREE.MeshPhysicalMaterial({
+    color: CREAM_COLOR,
+    roughness: 0.55,
+    metalness: 0.02,
+    sheen: 0.45,
+    sheenRoughness: 0.55,
+    sheenColor: CREAM_COLOR,
+    envMap,
+    envMapIntensity: CREAM_ENV_INTENSITY,
+  });
+}
+
+function creamGeometry(radius: number, height: number) {
+  const dome = Math.min(radius * 0.22, height * 0.14);
+  const wall = Math.max(height - dome, 0.001);
+  const pts = [new THREE.Vector2(0.001, 0), new THREE.Vector2(radius, 0), new THREE.Vector2(radius, wall)];
+  for (let i = 1; i <= 10; i++) {
+    const angle = (i / 10) * Math.PI * 0.5;
+    pts.push(new THREE.Vector2(Math.cos(angle) * radius, wall + Math.sin(angle) * dome));
+  }
+  return new THREE.LatheGeometry(pts, 64);
+}
+
+function addCream(root: THREE.Object3D, envMap: THREE.Texture) {
+  let existing: THREE.Mesh | null = null;
+  let jar: THREE.Mesh | null = null;
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const name = mesh.name.toLowerCase();
+    if (name.includes('cream')) existing = mesh;
+    else if (!jar && partRole(mesh.name, '') === 'jar') jar = mesh;
+  });
+
+  if (existing) {
+    const previous = Array.isArray(existing.material) ? existing.material : [existing.material];
+    previous.forEach((material) => material?.dispose());
+    existing.material = creamMaterial(envMap);
+    existing.layers.set(PRODUCT_LAYER);
+    return;
+  }
+  if (!jar) return;
+
+  root.updateWorldMatrix(true, true);
+  const box = new THREE.Box3().setFromObject(jar);
+  box.applyMatrix4(new THREE.Matrix4().copy(root.matrixWorld).invert());
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const radius = Math.min(size.x, size.z) * 0.5 * (1 - CREAM_WALL_GAP);
+  const height = size.y * CREAM_FILL;
+  const cream = new THREE.Mesh(creamGeometry(radius, height), creamMaterial(envMap));
+  cream.name = 'cream';
+  cream.layers.set(PRODUCT_LAYER);
+  cream.position.set(center.x, box.min.y + size.y * 0.02, center.z);
+  root.add(cream);
+}
+
+function dressProduct(root: THREE.Object3D, envMap: THREE.Texture) {
+  const log = !productNamesLogged;
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.layers.set(PRODUCT_LAYER);
+    const materials = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).filter(Boolean);
+    const materialName = materials.map((material) => material.name).join(', ');
+    if (log) console.log(mesh.name, materialName);
+    const role = partRole(mesh.name, materialName);
+    const source = materials[0] as THREE.MeshStandardMaterial | undefined;
+    if (!source || !role) return;
+    if (role === 'jar') {
+      source.dispose();
+      mesh.material = new THREE.MeshPhysicalMaterial({
+        color: '#ffffff',
+        metalness: 0,
+        transmission: GLASS_TRANSMISSION,
+        transparent: true,
+        ior: GLASS_IOR,
+        thickness: GLASS_THICKNESS,
+        roughness: GLASS_ROUGHNESS,
+        attenuationColor: GLASS_TINT,
+        attenuationDistance: GLASS_ATTENUATION_DISTANCE,
+        specularIntensity: 1,
+        specularColor: '#ffffff',
+        clearcoat: 0.3,
+        side: THREE.DoubleSide,
+        envMap,
+        envMapIntensity: PRODUCT_ENV_INTENSITY,
+      });
+      return;
+    }
+    if (role === 'lid') {
+      source.envMap = envMap;
+      if ('envMapIntensity' in source) source.envMapIntensity = LID_ENV_INTENSITY;
+      return;
+    }
+    source.envMapIntensity = 0;
+    const ink = LABEL_UNLIT
+      ? new THREE.MeshBasicMaterial({
+          map: source.map,
+          color: source.color,
+          transparent: true,
+          opacity: source.opacity,
+          alphaTest: source.alphaTest,
+          side: source.side,
+        })
+      : source;
+    if (LABEL_UNLIT) source.dispose();
+    ink.transparent = true;
+    ink.depthWrite = false;
+    ink.polygonOffset = true;
+    ink.polygonOffsetFactor = -2;
+    ink.polygonOffsetUnits = -2;
+    mesh.material = ink;
+    mesh.renderOrder = 2;
+  });
+  productNamesLogged = true;
+}
+
+function disposeProduct(root: THREE.Object3D) {
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry?.dispose();
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    materials.forEach((material) => material?.dispose());
+  });
+}
+
+class ProductBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error('Product model failed to load. Using the procedural jar.', error);
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+function ProceduralJar({ onWidth }: { onWidth: (width: number) => void }) {
   const jar = useMemo(jarProfile, []);
   const lid = useMemo(lidProfile, []);
   const band = useMemo(bandProfile, []);
   const brand = useMemo(brandTexture, []);
-  const glowColor = useMemo(() => new THREE.Color(JAR_COLOR), []);
 
   useEffect(() => () => brand.dispose(), [brand]);
+  useLayoutEffect(() => {
+    onWidth(JAR_WIDTH);
+  }, [onWidth]);
 
   const onProduct = (mesh: THREE.Object3D) => {
     mesh.layers.set(PRODUCT_LAYER);
   };
 
   return (
-    <group name="PRODUCT_SLOT" position={[0, 0.05, 0]}>
-      <group name="PRODUCT_MODEL" position={[0, -JAR_HEIGHT * 0.42, 0]} rotation={[0, 0, 0]}>
-        <mesh onUpdate={onProduct} castShadow>
-          <latheGeometry args={[jar, 72]} />
-          <meshPhysicalMaterial
-            color={JAR_COLOR}
-            roughness={0.35}
-            metalness={0.02}
-            clearcoat={0.4}
-            clearcoatRoughness={0.42}
-            sheen={0.35}
-            sheenRoughness={0.55}
-            sheenColor={JAR_COLOR}
-            envMapIntensity={0}
-            onBeforeCompile={shadeJar}
-          />
-        </mesh>
-        <mesh onUpdate={onProduct} position={[0, JAR_HEIGHT + 0.01, 0]}>
-          <latheGeometry args={[lid, 72]} />
-          <meshPhysicalMaterial color={LID_COLOR} metalness={1} roughness={0.28} envMapIntensity={0.15} />
-        </mesh>
-        <mesh onUpdate={onProduct}>
-          <latheGeometry args={[band, 72]} />
-          <meshPhysicalMaterial
-            color={GEM_COLOR}
-            roughness={0.22}
-            metalness={0.2}
-            clearcoat={0.55}
-            clearcoatRoughness={0.25}
-            emissive={GEM_COLOR}
-            emissiveIntensity={0.22}
-            envMapIntensity={0}
-          />
-        </mesh>
-        <mesh
-          onUpdate={onProduct}
-          position={[0, JAR_HEIGHT * 0.46, 0]}
-        >
-          <cylinderGeometry args={[JAR_WIDTH * 0.5 + 0.012, JAR_WIDTH * 0.5 + 0.012, 0.2, 48, 1, true, -0.52, 1.04]} />
-          <meshStandardMaterial
-            map={brand}
-            transparent
-            depthWrite={false}
-            roughness={0.4}
-            metalness={0.35}
-            color="#f4f2ec"
-            envMapIntensity={0}
-            polygonOffset
-            polygonOffsetFactor={-2}
-          />
-        </mesh>
-      </group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -JAR_HEIGHT * 0.42 + 0.01, -0.02]} renderOrder={2}>
-        <planeGeometry args={[1.15, 1.15]} />
-        <shaderMaterial
-          transparent
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          toneMapped={false}
-          uniforms={{ uColor: { value: glowColor } }}
-          vertexShader={`
-            varying vec2 vUv;
-            void main() {
-              vUv = uv;
-              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-          `}
-          fragmentShader={`
-            varying vec2 vUv;
-            uniform vec3 uColor;
-            void main() {
-              vec2 p = vUv * 2.0 - 1.0;
-              float r = length(p);
-              float ring = smoothstep(0.4, 0.62, r) * smoothstep(1.0, 0.68, r);
-              float back = smoothstep(0.2, 0.95, vUv.y);
-              gl_FragColor = vec4(uColor, ring * (0.07 + back * 0.2));
-            }
-          `}
+    <>
+      <mesh onUpdate={onProduct} castShadow>
+        <latheGeometry args={[jar, 72]} />
+        <meshPhysicalMaterial
+          color={JAR_COLOR}
+          roughness={0.35}
+          metalness={0.02}
+          clearcoat={0.4}
+          clearcoatRoughness={0.42}
+          sheen={0.35}
+          sheenRoughness={0.55}
+          sheenColor={JAR_COLOR}
+          envMapIntensity={0}
+          onBeforeCompile={shadeJar}
         />
       </mesh>
+      <mesh onUpdate={onProduct} position={[0, JAR_HEIGHT + 0.01, 0]}>
+        <latheGeometry args={[lid, 72]} />
+        <meshPhysicalMaterial color={LID_COLOR} metalness={1} roughness={0.28} envMapIntensity={0.15} />
+      </mesh>
+      <mesh onUpdate={onProduct}>
+        <latheGeometry args={[band, 72]} />
+        <meshPhysicalMaterial
+          color={GEM_COLOR}
+          roughness={0.22}
+          metalness={0.2}
+          clearcoat={0.55}
+          clearcoatRoughness={0.25}
+          emissive={GEM_COLOR}
+          emissiveIntensity={0.22}
+          envMapIntensity={0}
+        />
+      </mesh>
+      <mesh onUpdate={onProduct} position={[0, JAR_HEIGHT * 0.46, 0]}>
+        <cylinderGeometry args={[JAR_WIDTH * 0.5 + 0.012, JAR_WIDTH * 0.5 + 0.012, 0.2, 48, 1, true, -0.52, 1.04]} />
+        <meshStandardMaterial
+          map={brand}
+          transparent
+          depthWrite={false}
+          roughness={0.4}
+          metalness={0.35}
+          color="#f4f2ec"
+          envMapIntensity={0}
+          polygonOffset
+          polygonOffsetFactor={-2}
+        />
+      </mesh>
+    </>
+  );
+}
+
+function LoadedProduct({ envMap, onWidth }: { envMap: THREE.Texture; onWidth: (width: number) => void }) {
+  const { scene } = useGLTF(PRODUCT_MODEL_URL);
+  const [fitted, setFitted] = useState<THREE.Object3D | null>(null);
+
+  useLayoutEffect(() => {
+    const root = cloneProduct(scene);
+    const width = fitProduct(root);
+    dressProduct(root, envMap);
+    addCream(root, envMap);
+    onWidth(width);
+    setFitted(root);
+    return () => {
+      disposeProduct(root);
+      setFitted(null);
+    };
+  }, [scene, envMap, onWidth]);
+
+  if (!fitted) return null;
+  return <primitive object={fitted} />;
+}
+
+function ContactGlow({ width }: { width: number }) {
+  const glowColor = useMemo(() => new THREE.Color(JAR_COLOR), []);
+  const scale = width / JAR_WIDTH;
+
+  return (
+    <mesh
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, PRODUCT_BASE_Y + 0.01, -0.02]}
+      scale={[scale, 1, scale]}
+      renderOrder={2}
+    >
+      <planeGeometry args={[1.15, 1.15]} />
+      <shaderMaterial
+        transparent
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+        toneMapped={false}
+        uniforms={{ uColor: { value: glowColor } }}
+        vertexShader={`
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `}
+        fragmentShader={`
+          varying vec2 vUv;
+          uniform vec3 uColor;
+          void main() {
+            vec2 p = vUv * 2.0 - 1.0;
+            float r = length(p);
+            float ring = smoothstep(0.4, 0.62, r) * smoothstep(1.0, 0.68, r);
+            float back = smoothstep(0.2, 0.95, vUv.y);
+            gl_FragColor = vec4(uColor, ring * (0.07 + back * 0.2));
+          }
+        `}
+      />
+    </mesh>
+  );
+}
+
+function Product() {
+  const model = useRef<THREE.Group>(null);
+  const yaw = useRef(0);
+  const [width, setWidth] = useState(JAR_WIDTH);
+  const envMap = useProductStudio();
+  const fallback = <ProceduralJar onWidth={setWidth} />;
+
+  useFrame((state, rawDelta) => {
+    const group = model.current;
+    if (!group) return;
+    const delta = Math.min(rawDelta, 0.05);
+    const k = 1 - Math.exp(-3 * delta);
+    yaw.current += (state.pointer.x * PRODUCT_MOUSE_TURN - yaw.current) * k;
+    group.rotation.y = yaw.current;
+  });
+
+  return (
+    <group name="PRODUCT_SLOT" position={[0, 0.05, 0]}>
+      <group ref={model} name="PRODUCT_MODEL" position={[0, PRODUCT_BASE_Y, 0]}>
+        <ProductBoundary fallback={fallback}>
+          <Suspense fallback={fallback}>{<LoadedProduct envMap={envMap} onWidth={setWidth} />}</Suspense>
+        </ProductBoundary>
+      </group>
+      <ContactGlow width={width} />
     </group>
   );
 }
+
+useGLTF.preload(PRODUCT_MODEL_URL);
 
 function holdClear(target: THREE.Vector3) {
   const limit = CENTER_CLEAR_RADIUS + 0.08;
@@ -1164,7 +1496,7 @@ function liftGem(intensity: number) {
   };
 }
 
-const liftLargeGem = liftGem(2.3);
+const liftLargeGem = liftGem(4);
 const liftMidGem = liftGem(4);
 
 function Gems() {
@@ -1173,7 +1505,7 @@ function Gems() {
   const gems = useMemo(makeGems, []);
   const refractive = useMemo(() => gems.filter((gem) => gem.tier !== 'small'), [gems]);
   const smallCount = useMemo(() => gems.filter((gem) => gem.tier === 'small').length, [gems]);
-  const smallTint = useMemo(() => new THREE.Color(GEM_COLOR).lerp(new THREE.Color('#001544'), 0.45), []);
+  const smallTint = useMemo(() => new THREE.Color(GEM_COLOR).lerp(new THREE.Color('#072553'), 0.45), []);
   const meshes = useRef<(THREE.Mesh | null)[]>([]);
   const instanced = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
