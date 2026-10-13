@@ -4,7 +4,6 @@ import { CanvasWrapper } from '@/components/canvas';
 import { BLACK_WATER_KOI_CONFIG } from '@/components/assists/black-water-koi/blackWaterKoiConfig';
 import { BlackWaterKoiScene } from '@/components/assists/black-water-koi/BlackWaterKoiScene';
 import { BlackWaterKoiSoundToggle } from '@/components/assists/black-water-koi/BlackWaterKoiSoundToggle';
-import { SceneCloseButton } from '@/components/showcase/SceneCloseButton';
 
 export function BlackWaterKoiExperience() {
   return (
@@ -21,7 +20,6 @@ export function BlackWaterKoiExperience() {
         <BlackWaterKoiScene />
       </CanvasWrapper>
       {BLACK_WATER_KOI_CONFIG.soundButtonEnabled ? <BlackWaterKoiSoundToggle /> : null}
-      <SceneCloseButton tone="on-dark" />
     </div>
   );
 }

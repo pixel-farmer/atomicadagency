@@ -64,14 +64,14 @@ function SceneTile({ scene }: { scene: SceneConfig }) {
     >
       <span
         ref={clipRef}
-        className={`absolute inset-0 overflow-hidden rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.35),inset_0_0_0_1px_rgba(255,255,255,0.08)] transition duration-300 group-hover:shadow-[0_18px_48px_rgba(0,0,0,0.45),inset_0_0_0_1px_rgba(255,255,255,0.14)] ${shown ? 'bg-transparent' : 'bg-black'}`}
+        className="absolute inset-0 overflow-hidden rounded-full bg-black shadow-[0_12px_40px_rgba(0,0,0,0.35),inset_0_0_0_1px_rgba(255,255,255,0.08)] transition duration-300 group-hover:shadow-[0_18px_48px_rgba(0,0,0,0.45),inset_0_0_0_1px_rgba(255,255,255,0.14)]"
       >
         <Image
           src={scene.poster}
           alt=""
           fill
           sizes="260px"
-          className={`object-cover transition-opacity duration-200 ${shown ? 'opacity-0' : 'opacity-100'}`}
+          className="object-cover"
         />
         {mounted ? (
           <View
@@ -82,7 +82,6 @@ function SceneTile({ scene }: { scene: SceneConfig }) {
             <Suspense fallback={null}>
               <PortalVortex
                 src={scene.poster}
-                tint={scene.portalTint}
                 active={targetOn && active}
                 onRest={settle}
               />
@@ -90,7 +89,6 @@ function SceneTile({ scene }: { scene: SceneConfig }) {
           </View>
         ) : null}
       </span>
-      <span className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(0,0,0,0.42)_0%,rgba(0,0,0,0.08)_58%,transparent_74%)]" />
       <span className="pointer-events-none absolute inset-0 flex items-center justify-center px-[10%] text-center font-sans text-[13px] font-extralight uppercase leading-snug tracking-[0.16em] text-white [text-shadow:0_1px_10px_rgba(0,0,0,0.85)] sm:text-[14px] md:text-[15px]">
         {scene.title}
       </span>

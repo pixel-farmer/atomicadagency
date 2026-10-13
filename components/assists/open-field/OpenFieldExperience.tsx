@@ -5,7 +5,6 @@ import { CanvasWrapper } from '@/components/canvas';
 import { OpenFieldScene } from '@/components/assists/open-field/OpenFieldScene';
 import { TheRoomJoystick } from '@/components/assists/the-room/TheRoomJoystick';
 import { TheRoomSound } from '@/components/assists/the-room/TheRoomSound';
-import { SceneCloseButton } from '@/components/showcase/SceneCloseButton';
 
 export function OpenFieldExperience() {
   const [touch, setTouch] = useState(false);
@@ -31,7 +30,6 @@ export function OpenFieldExperience() {
         <OpenFieldScene />
       </CanvasWrapper>
       <TheRoomSound src="/wind.ogg" />
-      <SceneCloseButton tone="on-light" />
       {touch && (
         <TheRoomJoystick className="absolute bottom-[calc(clamp(1.25rem,4vh,2.5rem)+2rem)] left-[clamp(1rem,4vw,2.5rem)]" />
       )}

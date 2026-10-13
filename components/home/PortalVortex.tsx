@@ -14,39 +14,43 @@ void main() {
 `;
 
 const fragmentShader = /* glsl */ `
-varying vec2 vUv;
 uniform sampler2D uTex;
 uniform float uTime;
 uniform float uProgress;
-uniform vec3 uTint;
+uniform float uDistort;
+uniform float uBump;
+varying vec2 vUv;
+
+// Swirl surface: two spiral arms, zero at the rim and at the exact center
+float gelHeight(vec2 p) {
+  float r = length(p) * 2.0;
+  float a = atan(p.y, p.x);
+  float env = smoothstep(1.0, 0.3, r) * smoothstep(0.0, 0.15, r);
+  float phase = a * 2.0 + r * 5.0 - uTime * 0.25;
+  return sin(phase) * env;
+}
 
 void main() {
-  vec2 centered = vUv * 2.0 - 1.0;
-  float r = length(centered);
-  float angle = atan(centered.y, centered.x);
-  vec2 sampleUv = vUv;
+  vec2 p = vUv - 0.5;
+  float e = 0.004;
+  vec2 grad = vec2(
+    gelHeight(p + vec2(e, 0.0)) - gelHeight(p - vec2(e, 0.0)),
+    gelHeight(p + vec2(0.0, e)) - gelHeight(p - vec2(0.0, e))
+  ) / (2.0 * e);
 
-  // Progress 0 keeps the still image. Polar math is not bit-identical, so it stays off until the hover moves.
-  if (uProgress > 0.0) {
-    float core = pow(clamp(1.0 - r, 0.0, 1.0), 1.6);
-    float swirled = angle + uProgress * (core * 7.0 + uTime * 0.7 * core);
-    float zoom = mix(1.0, 0.45 + 0.55 * r, uProgress);
-    float sampleR = r * zoom;
-    vec2 warped = vec2(cos(swirled), sin(swirled)) * sampleR;
-    sampleUv = warped * 0.5 + 0.5;
-  }
+  vec3 col = texture2D(uTex, vUv + grad * uDistort * uProgress).rgb;
 
-  vec4 color = sRGBTransferEOTF(texture2D(uTex, sampleUv));
-  float arm = 0.5 + 0.5 * sin(angle * 6.0 + r * 10.0 - uTime * 1.3);
-  color.rgb *= mix(1.0, 0.72 + 0.28 * arm, uProgress);
+  // White highlight where the surface catches the light
+  vec3 n = normalize(vec3(-grad * uBump * uProgress, 1.0));
+  vec3 L = normalize(vec3(-0.5, 0.6, 0.7));
+  vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
+  float spec = pow(max(dot(n, H), 0.0), 80.0);
+  col += vec3(1.0) * spec * 0.6 * uProgress;
 
-  float centerShade = mix(0.22, 1.0, smoothstep(0.0, 0.78, r));
-  color.rgb *= mix(1.0, centerShade, uProgress);
+  // A touch of shading so it has thickness
+  col *= 1.0 + dot(grad, vec2(-0.5, 0.6)) * 0.004 * uProgress;
 
-  float rim = smoothstep(0.68, 1.0, r) * uProgress;
-  color.rgb += uTint * rim * 0.7;
-
-  gl_FragColor = vec4(color.rgb, 1.0);
+  gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }
 `;
@@ -73,12 +77,11 @@ function FillFrame() {
 
 type PortalVortexProps = {
   src: string;
-  tint: string;
   active: boolean;
   onRest?: () => void;
 };
 
-export function PortalVortex({ src, tint, active, onRest }: PortalVortexProps) {
+export function PortalVortex({ src, active, onRest }: PortalVortexProps) {
   const texture = useTexture(src);
   const invalidate = useThree((state) => state.invalidate);
   const activeRef = useRef(active);
@@ -100,12 +103,13 @@ export function PortalVortex({ src, tint, active, onRest }: PortalVortexProps) {
         uTex: { value: texture },
         uTime: { value: 0 },
         uProgress: { value: 0 },
-        uTint: { value: new THREE.Color(tint) },
+        uDistort: { value: 0.0015 },
+        uBump: { value: 0.05 },
       },
       vertexShader,
       fragmentShader,
     });
-  }, [texture, tint]);
+  }, [texture]);
 
   useEffect(() => () => material.dispose(), [material]);
 
