@@ -34,7 +34,7 @@ export const sceneCatalog = [
   },
   {
     slug: 'open-field',
-    title: 'Open Field',
+    title: 'The Glass Bead',
     // TODO: replace the generated placeholder in /public/posters with a real still.
     poster: '/posters/open-field.webp',
     /** Dark type on the pale field. */
