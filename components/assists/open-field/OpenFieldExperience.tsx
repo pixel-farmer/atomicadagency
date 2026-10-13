@@ -6,7 +6,7 @@ import { OpenFieldScene } from '@/components/assists/open-field/OpenFieldScene';
 import { TheRoomJoystick } from '@/components/assists/the-room/TheRoomJoystick';
 import { TheRoomSound } from '@/components/assists/the-room/TheRoomSound';
 
-export function OpenFieldExperience() {
+export function OpenFieldExperience({ pauseWhenHidden = false }: { pauseWhenHidden?: boolean }) {
   const [touch, setTouch] = useState(false);
 
   useEffect(() => {
@@ -26,6 +26,7 @@ export function OpenFieldExperience() {
         cameraFov={60}
         dpr={[1, 1.75]}
         transparent={false}
+        pauseWhenHidden={pauseWhenHidden}
       >
         <OpenFieldScene />
       </CanvasWrapper>

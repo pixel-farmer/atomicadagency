@@ -5,6 +5,10 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
+const DURATION = 3.0;   // seconds for one wave to reach the rim
+const INTERVAL = 0.8;        // calm pause between waves
+const RINGS = Math.ceil(DURATION / INTERVAL) + 1;
+
 const vertexShader = /* glsl */ `
 varying vec2 vUv;
 void main() {
@@ -15,41 +19,55 @@ void main() {
 
 const fragmentShader = /* glsl */ `
 uniform sampler2D uTex;
-uniform float uTime;
-uniform float uProgress;
-uniform float uDistort;
-uniform float uBump;
+uniform vec2 uCenter;
+uniform float uTime;   // seconds since hover began
+uniform float uStop;   // time hover ended (1e9 while hovering, -1 when idle)
 varying vec2 vUv;
 
-// Swirl surface: two spiral arms, zero at the rim and at the exact center
-float gelHeight(vec2 p) {
-  float r = length(p) * 2.0;
-  float a = atan(p.y, p.x);
-  float env = smoothstep(1.0, 0.3, r) * smoothstep(0.0, 0.15, r);
-  float phase = a * 2.0 + r * 5.0 - uTime * 0.25;
-  return sin(phase) * env;
+const float MAX_RADIUS = 0.55;
+const float SHADING = 8.0;
+const float DURATION = ${DURATION.toFixed(3)};
+const float INTERVAL = ${INTERVAL.toFixed(3)};
+const int RINGS = ${RINGS};
+
+float waveOffset(float t, vec2 dir) {
+  float width = mix(0.04, 0.11, t);
+  float d = length(dir) - t * MAX_RADIUS;
+  d *= 1.0 - smoothstep(0.0, width, abs(d));
+  d *= smoothstep(0.0, 0.05, t);
+  d *= 1.0 - smoothstep(0.75, 1.0, t);
+  return d;
+}
+
+// r, g, b offsets for one ring (the chromatic split)
+vec3 ringOffsets(float t, vec2 dir) {
+  float tOff = 0.05 * sin(t * 3.14159);
+  return vec3(waveOffset(t + tOff, dir), waveOffset(t, dir), waveOffset(t - tOff, dir));
 }
 
 void main() {
-  vec2 p = vUv - 0.5;
-  float e = 0.004;
-  vec2 grad = vec2(
-    gelHeight(p + vec2(e, 0.0)) - gelHeight(p - vec2(e, 0.0)),
-    gelHeight(p + vec2(0.0, e)) - gelHeight(p - vec2(0.0, e))
-  ) / (2.0 * e);
+  vec2 dir = uCenter - vUv;
+  float len = length(dir);
+  vec2 n = len > 1e-4 ? dir / len : vec2(0.0);
 
-  vec3 col = texture2D(uTex, vUv + grad * uDistort * uProgress).rgb;
+  vec3 sum = vec3(0.0);
+  float newest = floor(uTime / INTERVAL);
+  for (int i = 0; i < RINGS; i++) {
+    float k = newest - float(i);
+    float born = k * INTERVAL;
+    if (k < 0.0 || born > uStop) continue;
+    float t = (uTime - born) / DURATION;
+    if (t < 0.0 || t > 1.0) continue;
+    float amp = 1.0 - 0.65 * t;          // older rings are weaker
+    sum += ringOffsets(t, dir) * amp;
+  }
+  sum *= 0.7;                            // keep overlaps from over-bending
 
-  // White highlight where the surface catches the light
-  vec3 n = normalize(vec3(-grad * uBump * uProgress, 1.0));
-  vec3 L = normalize(vec3(-0.5, 0.6, 0.7));
-  vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
-  float spec = pow(max(dot(n, H), 0.0), 80.0);
-  col += vec3(1.0) * spec * 0.6 * uProgress;
+  float r = texture2D(uTex, vUv + n * sum.r).r;
+  float g = texture2D(uTex, vUv + n * sum.g).g;
+  float b = texture2D(uTex, vUv + n * sum.b).b;
 
-  // A touch of shading so it has thickness
-  col *= 1.0 + dot(grad, vec2(-0.5, 0.6)) * 0.004 * uProgress;
-
+  vec3 col = vec3(r, g, b) + sum.g * SHADING;
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }
@@ -78,16 +96,25 @@ function FillFrame() {
 type PortalVortexProps = {
   src: string;
   active: boolean;
+  /** Ripple origin in uv space. Set when the wave starts. */
+  origin?: [number, number];
   onRest?: () => void;
 };
 
-export function PortalVortex({ src, active, onRest }: PortalVortexProps) {
+export function PortalVortex({ src, active, origin = [0.5, 0.5], onRest }: PortalVortexProps) {
   const texture = useTexture(src);
   const invalidate = useThree((state) => state.invalidate);
   const activeRef = useRef(active);
+  const originRef = useRef(origin);
+  const clock = useRef(0);
+  const stopAt = useRef<number | null>(null);
+  const running = useRef(false);
   const onRestRef = useRef(onRest);
-  const resting = useRef(true);
+  const wasActive = useRef(false);
+  const playing = useRef(false);
+  const rested = useRef(true);
   activeRef.current = active;
+  originRef.current = origin;
   onRestRef.current = onRest;
 
   const material = useMemo(() => {
@@ -101,10 +128,9 @@ export function PortalVortex({ src, active, onRest }: PortalVortexProps) {
       depthWrite: false,
       uniforms: {
         uTex: { value: texture },
+        uCenter: { value: new THREE.Vector2(0.5, 0.5) },
         uTime: { value: 0 },
-        uProgress: { value: 0 },
-        uDistort: { value: 0.0015 },
-        uBump: { value: 0.05 },
+        uStop: { value: -1 },
       },
       vertexShader,
       fragmentShader,
@@ -125,28 +151,44 @@ export function PortalVortex({ src, active, onRest }: PortalVortexProps) {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [invalidate]);
 
+  useEffect(() => {
+    if (active) invalidate();
+  }, [active, invalidate]);
+
   useFrame((_, rawDelta) => {
     const delta = Math.min(rawDelta, 0.05);
-    const target = activeRef.current ? 1 : 0;
-    const current = material.uniforms.uProgress.value as number;
-    const next = THREE.MathUtils.damp(current, target, 8, delta);
-    material.uniforms.uProgress.value = next;
-
-    const visible = document.visibilityState === 'visible';
-    if (visible) material.uniforms.uTime.value += delta;
-
-    const changing = Math.abs(next - current) > 0.0008;
-    if (visible && (changing || next > 0.001)) invalidate();
-
-    if (!activeRef.current && next <= 0.001) {
-      material.uniforms.uProgress.value = 0;
-      if (!resting.current) {
-        resting.current = true;
-        onRestRef.current?.();
-      }
-    } else {
-      resting.current = false;
+    const u = material.uniforms;
+  
+    if (activeRef.current && !running.current) {      // hover started
+      running.current = true;
+      clock.current = 0;
+      stopAt.current = null;
+      u.uStop.value = 1e9;
     }
+    if (!running.current) return;
+  
+    if (activeRef.current && stopAt.current !== null) { // re-entered before settling
+      stopAt.current = null;
+      u.uStop.value = 1e9;
+    }
+  
+    clock.current += delta;
+    u.uTime.value = clock.current;
+  
+    if (!activeRef.current && stopAt.current === null) { // hover ended: stop making new rings
+      stopAt.current = clock.current;
+      u.uStop.value = clock.current;
+    }
+  
+    if (stopAt.current !== null && clock.current > stopAt.current + DURATION) {
+      running.current = false;                        // last ring has finished
+      u.uTime.value = 0;
+      u.uStop.value = -1;
+      onRestRef.current?.();
+      return;
+    }
+  
+    if (document.visibilityState === 'visible') invalidate();
   });
 
   return (

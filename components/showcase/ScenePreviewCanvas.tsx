@@ -2,6 +2,7 @@
 
 import { View } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { PreviewProvider, usePreview } from '@/components/showcase/previewState';
 
@@ -89,7 +90,8 @@ function usePreviewEnabled() {
 /** One canvas for every tile. It stays mounted across route changes. */
 export function ScenePreviewRoot({ children }: { children: ReactNode }) {
   const source = useRef<HTMLDivElement>(null);
-  const enabled = usePreviewEnabled();
+  const pathname = usePathname();
+  const enabled = usePreviewEnabled() && !pathname.startsWith('/play');
 
   return (
     <PreviewProvider enabled={enabled}>

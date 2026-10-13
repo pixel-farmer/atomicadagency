@@ -25,6 +25,7 @@ export type CanvasWrapperProps = {
   dpr?: InnerCanvasProps['dpr'];
   shadows?: InnerCanvasProps['shadows'];
   transparent?: InnerCanvasProps['transparent'];
+  pauseWhenHidden?: InnerCanvasProps['pauseWhenHidden'];
 };
 
 const defaultProps = {
@@ -45,6 +46,7 @@ export function CanvasWrapper({
   dpr = defaultProps.dpr,
   shadows = defaultProps.shadows,
   transparent = true,
+  pauseWhenHidden = false,
 }: CanvasWrapperProps) {
   return (
     <div className={wrapperClassName}>
@@ -55,6 +57,7 @@ export function CanvasWrapper({
         dpr={dpr}
         shadows={shadows}
         transparent={transparent}
+        pauseWhenHidden={pauseWhenHidden}
       >
         {children}
       </DynamicInnerCanvas>

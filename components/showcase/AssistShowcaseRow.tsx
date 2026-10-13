@@ -2,8 +2,8 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { View } from '@react-three/drei';
-import { Suspense, useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { Suspense, useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
 import { PortalVortex } from '@/components/home/PortalVortex';
 import { usePreview } from '@/components/showcase/previewState';
 import { preloadPortalTextures, scenes, type SceneConfig } from '@/components/showcase/scenes';
@@ -15,6 +15,7 @@ function SceneTile({ scene }: { scene: SceneConfig }) {
   const [mounted, setMounted] = useState(false);
   const [shown, setShown] = useState(false);
   const [targetOn, setTargetOn] = useState(false);
+  const [origin, setOrigin] = useState<[number, number]>([0.5, 0.5]);
   const hideTimer = useRef<number | null>(null);
 
   useEffect(() => {
@@ -33,17 +34,22 @@ function SceneTile({ scene }: { scene: SceneConfig }) {
     }, 200);
   }, [release, scene.slug, setTrack, trackRef]);
 
-  const preview = () => {
+  const preview = (nextOrigin: [number, number]) => {
     if (!enabled) return;
     if (hideTimer.current !== null) {
       window.clearTimeout(hideTimer.current);
       hideTimer.current = null;
     }
+    setOrigin(nextOrigin);
     activate(scene.slug);
     setTargetOn(true);
     setMounted(true);
     setTrack(clipRef.current);
     requestAnimationFrame(() => setShown(true));
+  };
+
+  const enterFromPointer = () => {
+    preview([0.5, 0.5]);
   };
 
   const rest = () => {
@@ -56,9 +62,9 @@ function SceneTile({ scene }: { scene: SceneConfig }) {
       href={`/scenes/${scene.slug}`}
       prefetch={false}
       aria-label={`Preview ${scene.title}`}
-      onPointerEnter={preview}
+      onPointerEnter={enterFromPointer}
       onPointerLeave={rest}
-      onFocus={preview}
+      onFocus={() => preview([0.5, 0.5])}
       onBlur={rest}
       className="group relative z-[3] block aspect-square w-full max-w-[260px] cursor-pointer justify-self-center transition duration-300 hover:scale-[1.03] hover:-translate-y-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#bd5b5b]"
     >
@@ -74,19 +80,29 @@ function SceneTile({ scene }: { scene: SceneConfig }) {
           className="object-cover"
         />
         {mounted ? (
-          <View
-            track={clipRef as RefObject<HTMLElement>}
+          <div
             className="pointer-events-none absolute inset-0 overflow-hidden rounded-full transition-opacity duration-200"
             style={{ opacity: shown ? 1 : 0 }}
           >
-            <Suspense fallback={null}>
-              <PortalVortex
-                src={scene.poster}
-                active={targetOn && active}
-                onRest={settle}
-              />
-            </Suspense>
-          </View>
+            <Canvas
+              className="h-full w-full"
+              frameloop="demand"
+              dpr={[1, 1.5]}
+              gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+              onCreated={({ gl }) => {
+                gl.setClearColor(0x000000, 0);
+              }}
+            >
+              <Suspense fallback={null}>
+                <PortalVortex
+                  src={scene.poster}
+                  active={targetOn && active}
+                  origin={origin}
+                  onRest={settle}
+                />
+              </Suspense>
+            </Canvas>
+          </div>
         ) : null}
       </span>
       <span className="pointer-events-none absolute inset-0 flex items-center justify-center px-[10%] text-center font-sans text-[13px] font-extralight uppercase leading-snug tracking-[0.16em] text-white [text-shadow:0_1px_10px_rgba(0,0,0,0.85)] sm:text-[14px] md:text-[15px]">

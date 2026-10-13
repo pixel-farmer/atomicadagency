@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactLenis } from 'lenis/react';
+import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 
 type SmoothScrollProps = {
@@ -8,13 +9,14 @@ type SmoothScrollProps = {
 };
 
 export function SmoothScroll({ children }: SmoothScrollProps) {
+  const pathname = usePathname();
   const [reduceMotion, setReduceMotion] = useState(true);
 
   useEffect(() => {
     setReduceMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }, []);
 
-  if (reduceMotion) {
+  if (reduceMotion || pathname.startsWith('/play')) {
     return children;
   }
 
