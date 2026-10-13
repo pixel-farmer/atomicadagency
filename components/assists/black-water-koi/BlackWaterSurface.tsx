@@ -1,7 +1,7 @@
 'use client';
 
 import { useFrame } from '@react-three/fiber';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { BLACK_WATER_KOI_CONFIG } from '@/components/assists/black-water-koi/blackWaterKoiConfig';
 import {
@@ -58,7 +58,7 @@ const TRAIL_MIN_STRETCH = 0.2;
 
 const WATER_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
-export function BlackWaterSurface() {
+export function BlackWaterSurface({ cursorRipples = true }: { cursorRipples?: boolean } = {}) {
   const ripplesRef = useRef<Ripple[]>([]);
   const nextRainAt = useRef(0);
   const bootstrapped = useRef(false);
@@ -92,6 +92,8 @@ export function BlackWaterSurface() {
       },
     });
   }, []);
+
+  useEffect(() => () => material.dispose(), [material]);
 
   useFrame((state) => {
     const t = state.clock.getElapsedTime();
@@ -128,7 +130,7 @@ export function BlackWaterSurface() {
       }
     }
 
-    if (BLACK_WATER_KOI_CONFIG.cursorRipplesEnabled) {
+    if (cursorRipples && BLACK_WATER_KOI_CONFIG.cursorRipplesEnabled) {
       // R3F only updates state.pointer on real pointer events, so an unchanged value means
       // the cursor is idle or off the canvas and no trail should be laid down.
       const prev = lastPointer.current;

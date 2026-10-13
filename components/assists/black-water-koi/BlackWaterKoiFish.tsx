@@ -2,7 +2,7 @@
 
 import { useAnimations, useGLTF, useTexture } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { Box3, Group, Object3D, SRGBColorSpace, Vector3 } from 'three';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
@@ -222,6 +222,16 @@ function KoiSwimmer({ spec }: { spec: KoiSwimmerSpec }) {
       koiModel: cloneKoiForScene(scene, diffuseMap),
     };
   }, [scene, diffuseMap, targetLength]);
+
+  useEffect(() => {
+    return () => {
+      koiModel.traverse((o) => {
+        if (o instanceof THREE.Mesh) {
+          [o.material].flat().forEach((m) => m.dispose());
+        }
+      });
+    };
+  }, [koiModel]);
 
   const { actions } = useAnimations(animations, rigRef);
 

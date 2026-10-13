@@ -284,7 +284,17 @@ void main() {
 }
 `;
 
-function GlassBall({ ball }: { ball: Ball }) {
+function GlassBall({
+  ball,
+  cubeSize = GLASS_CUBE_SIZE,
+  startupFrame = 24,
+  onFirstCapture,
+}: {
+  ball: Ball;
+  cubeSize?: number;
+  startupFrame?: number;
+  onFirstCapture?: () => void;
+}) {
   const ref = useRef<THREE.Mesh>(null);
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
@@ -292,9 +302,10 @@ function GlassBall({ ball }: { ball: Ball }) {
   const spin = useMemo(() => new THREE.Quaternion(), []);
   const capturedAt = useRef(new THREE.Vector3(1e6, 1e6, 1e6));
   const frame = useRef(0);
+  const notified = useRef(false);
 
   const cubeTarget = useMemo(() => {
-    const target = new THREE.WebGLCubeRenderTarget(GLASS_CUBE_SIZE, {
+    const target = new THREE.WebGLCubeRenderTarget(cubeSize, {
       type: THREE.HalfFloatType,
       generateMipmaps: false,
       minFilter: THREE.LinearFilter,
@@ -302,7 +313,7 @@ function GlassBall({ ball }: { ball: Ball }) {
     });
     target.texture.colorSpace = THREE.LinearSRGBColorSpace;
     return target;
-  }, []);
+  }, [cubeSize]);
   const cubeCamera = useMemo(() => new THREE.CubeCamera(0.05, 900, cubeTarget), [cubeTarget]);
 
   const material = useMemo(
@@ -351,7 +362,7 @@ function GlassBall({ ball }: { ball: Ball }) {
 
     frame.current += 1;
     const moved = capturedAt.current.distanceTo(ball.position);
-    const startup = frame.current === 24;
+    const startup = frame.current === startupFrame;
     const arrived = speed < 0.2 && moved > 0.5;
     const traveled = moved > GLASS_CUBE_RECAPTURE_DISTANCE;
     if (!startup && !arrived && !traveled) return;
@@ -361,6 +372,10 @@ function GlassBall({ ball }: { ball: Ball }) {
     cubeCamera.update(gl, scene);
     mesh.visible = true;
     capturedAt.current.copy(ball.position);
+    if (!notified.current) {
+      notified.current = true;
+      onFirstCapture?.();
+    }
   });
 
   return (

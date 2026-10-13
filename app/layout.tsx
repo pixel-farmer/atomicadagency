@@ -3,6 +3,7 @@ import { Outfit } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/react';
 import Script from 'next/script';
 import { SmoothScroll } from '@/components/marketing/SmoothScroll';
+import { ScenePreviewRoot } from '@/components/showcase/ScenePreviewCanvas';
 import './globals.css';
 
 const GA_MEASUREMENT_ID =
@@ -27,7 +28,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${outfit.variable} ${outfit.className}`}>
       <body className={`${outfit.className} min-h-screen font-sans antialiased`}>
-        <SmoothScroll>{children}</SmoothScroll>
+        <ScenePreviewRoot>
+          <SmoothScroll>{children}</SmoothScroll>
+        </ScenePreviewRoot>
         <Script
           src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
           strategy="afterInteractive"

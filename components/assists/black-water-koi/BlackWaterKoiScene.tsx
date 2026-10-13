@@ -1,7 +1,7 @@
 'use client';
 
 import { useThree } from '@react-three/fiber';
-import { Suspense, useLayoutEffect } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useRef } from 'react';
 import { BlackWaterKoiFish } from '@/components/assists/black-water-koi/BlackWaterKoiFish';
 import { BlackWaterSurface } from '@/components/assists/black-water-koi/BlackWaterSurface';
 
@@ -19,7 +19,33 @@ function SceneCamera() {
   return null;
 }
 
-export function BlackWaterKoiScene() {
+function ReadySignal({ onReady }: { onReady: () => void }) {
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+
+  useEffect(() => {
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => onReadyRef.current());
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  }, []);
+
+  return null;
+}
+
+type BlackWaterKoiSceneProps = {
+  cursorRipples?: boolean;
+  onReady?: () => void;
+};
+
+export function BlackWaterKoiScene({
+  cursorRipples = true,
+  onReady,
+}: BlackWaterKoiSceneProps = {}) {
   return (
     <>
       <SceneCamera />
@@ -28,9 +54,10 @@ export function BlackWaterKoiScene() {
       <ambientLight intensity={0.08} />
       <directionalLight position={[-4, 9, 3]} intensity={0.55} color="#b2d9f5" />
       <directionalLight position={[3, 6, -2]} intensity={0.12} color="#405060" />
-      <BlackWaterSurface />
+      <BlackWaterSurface cursorRipples={cursorRipples} />
       <Suspense fallback={null}>
         <BlackWaterKoiFish />
+        {onReady ? <ReadySignal onReady={onReady} /> : null}
       </Suspense>
     </>
   );
