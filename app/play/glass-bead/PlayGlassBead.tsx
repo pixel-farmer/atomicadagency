@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { OpenFieldExperience } from '@/components/assists/open-field';
 
-export function PlayOpenField() {
+export function PlayGlassBead() {
   const [started, setStarted] = useState(false);
 
   useEffect(() => {
