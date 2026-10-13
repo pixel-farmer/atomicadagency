@@ -1,6 +1,6 @@
 'use client';
 
-import { useTexture } from '@react-three/drei';
+import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
@@ -167,8 +167,11 @@ function FirstPersonControls() {
 
 const WALL_COLOR = '#8ba2a8';
 const CEILING_COLOR = '#c8d6df';
-const FLOOR_COLOR = '#c4c0b8';
+const FLOOR_COLOR = '#816349';
 const FLOOR_TEXTURE = '/wood-diamond.jpg';
+const PEDESTAL_PATH = '/StonePedestal.glb';
+/** Uniform scale. 1 is the model’s own size, about 0.9 m tall, and the base stays on the floor. */
+const PEDESTAL_SCALE = 3;
 /** Meters of floor covered by one repeat of the texture (four parquet panels). */
 const FLOOR_TILE_SIZE = 2.5;
 
@@ -188,6 +191,23 @@ function WoodFloor() {
       <meshStandardMaterial map={texture} roughness={0.7} />
     </mesh>
   );
+}
+
+useGLTF.preload(PEDESTAL_PATH);
+
+function StonePedestal() {
+  const { scene } = useGLTF(PEDESTAL_PATH);
+  const pedestal = useMemo(() => {
+    const clone = scene.clone(true);
+    clone.traverse((obj) => {
+      if (!(obj as THREE.Mesh).isMesh) return;
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+    });
+    return clone;
+  }, [scene]);
+
+  return <primitive object={pedestal} position={[0, 0.002, 0]} scale={PEDESTAL_SCALE} />;
 }
 
 function RoomShell() {
@@ -228,6 +248,7 @@ export function TheRoomScene() {
       <Suspense fallback={null}>
         <TheRoomRightWallWindows roomWidth={ROOM_WIDTH} />
         <WoodFloor />
+        <StonePedestal />
       </Suspense>
 
       <FirstPersonControls />
