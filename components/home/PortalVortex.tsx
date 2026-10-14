@@ -7,7 +7,7 @@ import * as THREE from 'three';
 
 /**
  * Hover treatment on the tile posters.
- * 'ascii'  faint white characters rain down the poster, matrix style but pale and see-through.
+ * 'ascii'  a pale white ASCII swirl, the homepage background's pattern, centered on the cursor.
  * 'bubble' a perfectly round glass bubble follows the cursor, refracting the poster with a bright,
  *          color-split rim.
  * 'gel'    pixels near the cursor bulge, drag with a springy lag, and wobble a little.
@@ -17,28 +17,24 @@ const HOVER_EFFECT = 'ascii' as 'ascii' | 'bubble' | 'gel' | 'ripple';
 
 /* ---------------------------------- ascii --------------------------------- */
 
-/** Characters in the rain. Keep them plain ASCII. */
-const ASCII_CHARS = '01<>/|+=-:*#%$&';
+/** Characters from light to dense, the same ramp as the homepage background swirl. */
+const ASCII_CHARS = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZQdpPqao*b#MW&8%B@$";
 /** Number of character columns across the tile. More is finer and smaller. */
-const ASCII_COLUMNS = 26;
+const ASCII_COLUMNS = 28;
 /** Peak opacity of the white characters, 0 to 1. */
-const ASCII_OPACITY = 0.5;
-/** Fall speed in tile heights per second. Each column varies around it. */
-const ASCII_SPEED = 0.32;
-/** Length of each trail, in tile heights. */
-const ASCII_TRAIL = 0.42;
-/** How often characters change, per second. */
-const ASCII_FLICKER = 3.0;
-/** Darkening of the poster while the rain runs, so the characters read. 0 is none. */
+const ASCII_OPACITY = 0.55;
+/** Animation speed. 1 matches the homepage swirl. */
+const ASCII_SPEED = 1.0;
+/** Size of one character cell in the homepage swirl's units. Scales how tight the spiral is. */
+const ASCII_CELL_PX = 12;
+/** Darkening of the poster while the swirl runs, so the characters read. 0 is none. */
 const ASCII_DIM = 0.14;
-/** Extra brightness near the cursor. 0 makes the rain even across the poster. */
-const ASCII_CURSOR_BOOST = 0.6;
 
 let glyphAtlas: THREE.CanvasTexture | null = null;
 /** One row of white characters on a transparent canvas, shared by every tile. */
 function getGlyphAtlas() {
   if (glyphAtlas) return glyphAtlas;
-  const cell = 64;
+  const cell = 32;
   const canvas = document.createElement('canvas');
   canvas.width = cell * ASCII_CHARS.length;
   canvas.height = cell;
@@ -279,53 +275,40 @@ varying vec2 vUv;
 const float COLUMNS = ${ASCII_COLUMNS.toFixed(1)};
 const float OPACITY = ${ASCII_OPACITY.toFixed(4)};
 const float SPEED = ${ASCII_SPEED.toFixed(4)};
-const float TRAIL = ${ASCII_TRAIL.toFixed(4)};
-const float FLICKER = ${ASCII_FLICKER.toFixed(4)};
+const float CELL_PX = ${ASCII_CELL_PX.toFixed(2)};
 const float DIM = ${ASCII_DIM.toFixed(4)};
-const float BOOST = ${ASCII_CURSOR_BOOST.toFixed(4)};
 const float COUNT = ${ASCII_CHARS.length.toFixed(1)};
-
-float hash(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-}
 
 void main() {
   vec3 base = texture2D(uTex, vUv).rgb;
 
   vec2 cell = vUv * COLUMNS;
-  float col = floor(cell.x);
-  float row = floor(cell.y);
+  vec2 id = floor(cell);
   vec2 f = fract(cell);
-  float cellY = (row + 0.5) / COLUMNS;
-  float span = 1.0 + TRAIL;
 
-  // Two streaks per column at different phases, so the columns are never empty for long.
-  float inten = 0.0;
-  for (int i = 0; i < 2; i++) {
-    float fi = float(i);
-    float live = step(0.25, hash(vec2(col, 3.1 + fi * 5.0)));
-    float speed = SPEED * (0.55 + 0.9 * hash(vec2(col, 7.3)));
-    float phase = fract(uTime * speed / span + hash(vec2(col, 1.7)) + fi * 0.5);
-    float headY = 1.0 - phase * span;
-    float d = cellY - headY;                   // positive above the head, where the trail is
-    float t = clamp(d / TRAIL, 0.0, 1.0);
-    float streak = d < 0.0 ? 1.0 : pow(1.0 - t, 1.7) * 0.75;
-    streak *= step(-1.0 / COLUMNS, d) * step(d, TRAIL);
-    inten = max(inten, streak * live);
-  }
+  // The homepage swirl, centered on the cursor. Distances are in that background's pixel units.
+  vec2 c = (id + 0.5 - uPointer * COLUMNS) * CELL_PX;
+  c.y = -c.y;
+  float dist = length(c) + 1.0;
+  float angle = atan(c.y, c.x + 0.0001);
+  float t = uTime * 0.84 * SPEED;
 
-  float tick = floor(uTime * FLICKER + hash(vec2(col, row)) * 10.0);
-  float idx = floor(hash(vec2(col + tick * 1.3, row)) * COUNT);
+  float swirl = sin(angle * 3.0 + t * 0.9 + dist * 0.028) * cos(angle * 2.0 - t * 0.55 + 12.0 / dist);
+  float ripple = sin(dist * 0.06 - t * 2.2) * 0.35;
+  float field = swirl + ripple;
+
+  float norm = min(1.0, (field + 1.0) * 0.5);
+  float idx = floor(norm * (COUNT - 1.0));
   vec2 g = vec2((idx + mix(0.08, 0.92, f.x)) / COUNT, mix(0.08, 0.92, f.y));
   float glyph = texture2D(uGlyphs, g).a;
 
-  vec2 pd = vUv - uPointer;
-  float near = exp(-dot(pd, pd) / (2.0 * 0.22 * 0.22));
-  float alpha = glyph * inten * OPACITY * (1.0 + BOOST * near) * uStrength;
+  // Same cutoff as the homepage: weak parts of the field draw nothing.
+  float on = step(0.08, field);
+  float alpha = glyph * on * (0.18 + norm * 0.72) * OPACITY * uStrength;
 
-  vec3 col3 = base * (1.0 - DIM * uStrength);
-  col3 = mix(col3, vec3(1.0), clamp(alpha, 0.0, 1.0));
-  gl_FragColor = vec4(col3, 1.0);
+  vec3 col = base * (1.0 - DIM * uStrength);
+  col = mix(col, vec3(1.0), clamp(alpha, 0.0, 1.0));
+  gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>
 }
 `;
