@@ -183,6 +183,9 @@ export function Water({ background, coreColor, coreDistance, coreHeight, jar }: 
         uniforms={uniforms}
         vertexShader={WATER_VERTEX}
         fragmentShader={WATER_FRAGMENT}
+        // Do not write depth: the glow sprites cross the water plane, and a depth-writing water
+        // cuts them off along that line, leaving a hard horizontal edge.
+        depthWrite={false}
         toneMapped={false}
       />
     </mesh>
