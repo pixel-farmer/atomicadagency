@@ -1,8 +1,8 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// STEP 1 — Replace the old glitter constants:
-//   GLITTER_COUNT, GLITTER_COLOR, GLITTER_SPARK
-// with this block (put it where those three lines were).
-// ─────────────────────────────────────────────────────────────────────────────
+'use client';
+
+import { useFrame } from '@react-three/fiber';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import * as THREE from 'three';
 
 /** Silver coin flakes floating around the jar. */
 const GLITTER_COUNT = 160;
@@ -35,14 +35,6 @@ const GLITTER_ROUGHNESS = 0.18;
 /** How strongly the coins reflect the neutral studio strips. */
 const GLITTER_ENV_INTENSITY = 1.6;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STEP 2 — Delete these three functions entirely:
-//   glitterTexture(), ribbonAt(), GlitterStream()
-// and paste this GlitterStream in their place. SapphiresScene doesn't change.
-// It reuses useProductStudio() so the coins reflect neutral white light
-// (true silver) instead of the blue scene environment.
-// ─────────────────────────────────────────────────────────────────────────────
-
 type Flake = {
   home: THREE.Vector3;
   axis: THREE.Vector3;
@@ -53,6 +45,11 @@ type Flake = {
   size: number;
   shade: number;
 };
+
+function rand(seed: number) {
+  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
 
 function makeFlakes(): Flake[] {
   return Array.from({ length: GLITTER_COUNT }, (_, i) => {
@@ -109,9 +106,8 @@ function makeFlakes(): Flake[] {
   });
 }
 
-function GlitterStream() {
+export function GlitterStream({ envMap }: { envMap: THREE.Texture }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
-  const envMap = useProductStudio();
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const spinQ = useMemo(() => new THREE.Quaternion(), []);
   const flakes = useMemo(makeFlakes, []);
