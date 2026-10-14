@@ -3,11 +3,13 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import { Environment, Lightformer, MeshRefractionMaterial, useGLTF } from '@react-three/drei';
 import {
+  BlendFunction,
   BloomEffect,
   ChromaticAberrationEffect,
   DepthOfFieldEffect,
   EffectComposer,
   EffectPass,
+  NoiseEffect,
   RenderPass,
   ToneMappingEffect,
   ToneMappingMode,
@@ -16,6 +18,8 @@ import {
 import { Component, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as THREE from 'three';
 import { GlitterStream as CoinGlitter } from '@/components/assists/sapphires/glitter-coins';
+import { GroundFog } from '@/components/assists/sapphires/SapphiresFog';
+import { Water } from '@/components/assists/sapphires/SapphiresWater';
 
 /** Large foreground gems at the lower corners of the frame. */
 const NEAR_GEM_COUNT = 3;
@@ -27,6 +31,8 @@ const SMALL_GEM_COUNT = 12;
 const GEM_IOR = 1.77;
 /** Body tint. Swap for ruby (#9b1b2e), emerald (#0d6b45), or diamond (#f7f8fa). */
 const GEM_COLOR = '#04102b';
+/** Body tint for the three large foreground gems. Brighter than GEM_COLOR so the big stones read as blue glass, not black slabs. */
+const LARGE_GEM_COLOR = GEM_COLOR;
 /** How far light travels before the tint takes hold. Higher is clearer. */
 const GEM_ATTENUATION_DISTANCE = 0.95;
 /** 0 keeps the facets sharp. Anything above ~0.05 goes frosted. */
@@ -56,13 +62,41 @@ const CENTER_CLEAR_RADIUS = 1.5;
 /** Shared transmission buffer size. One buffer for every gem. */
 const TRANSMISSION_RESOLUTION = 512;
 /** Bloom on the core and gem highlights only. Kept low so the core stays tinted. */
-const BLOOM_STRENGTH = 0.06;
+const BLOOM_STRENGTH = 0.09;
 /** Luminance where bloom starts. Only the hot core and gem sparks. */
-const BLOOM_THRESHOLD = 0.58;
+const BLOOM_THRESHOLD = 0.56;
 /** How dark the vignette corners get. */
-const VIGNETTE_STRENGTH = 0.82;
+const VIGNETTE_STRENGTH = 0.88;
+/** Film grain opacity. 0 turns it off; 0.05 to 0.1 reads as 35mm. */
+const GRAIN_OPACITY = 0.07;
+/** Seconds the camera takes to push in on load. */
+const INTRO_SECONDS = 4.5;
+/** How far back the camera starts, in world units beyond CAMERA_DISTANCE. */
+const INTRO_PUSH = 1.9;
+/** Extra height the camera starts with, settling to CAMERA_HEIGHT. */
+const INTRO_RISE = 0.55;
+/** Cool backlight on the product's edges. Separates the jar from the dark. */
+const PRODUCT_BACKLIGHT = 3.2;
+/** Color of that backlight. */
+const PRODUCT_BACKLIGHT_COLOR = '#8db3ff';
+/** Pale blue of the god rays fanning out from the core. */
+const SHAFT_COLOR = '#5c84ff';
+/** Peak opacity of the rays. Subtle at 0.1, loud above 0.3. */
+const SHAFT_INTENSITY = 0.17;
+/** Star-burst rays from the core. Off for the softer, fog-lit look. */
+const RAYS_ENABLED = false;
+/** The sparkle coins around the product. Off for a quieter frame. */
+const GLITTER_ENABLED = false;
+/** Dark water under the product that catches its reflection and the core's light. */
+const WATER_ENABLED = true;
+/** Low fog hugging the water, brightest toward the core. */
+const GROUND_FOG_ENABLED = true;
+/** Half-width of the product as it appears in the water. */
+const REFLECTION_RADIUS = 0.44;
+/** Strength of the anamorphic flare streaks through the core. */
+const FLARE_STRENGTH = 0.07;
 /** Lens color split. Radial, so it grows toward the frame edges. */
-const CHROMATIC_ABERRATION = 0.0016;
+const CHROMATIC_ABERRATION = 0.0011;
 /** World-unit falloff. Wide, so foreground gems stay only slightly soft. */
 const DOF_RANGE = 9;
 /** Bokeh size. Low, so the near gems don't dissolve into blur. */
@@ -82,7 +116,7 @@ const CAMERA_PARALLAX = 0.35;
 /** How far gems slide away from the cursor. */
 const CURSOR_DRIFT = 0.22;
 /** Soft key on the product only, from the front, so it keeps its own color. */
-const PRODUCT_KEY = 8;
+const PRODUCT_KEY = 4;
 /** Faint neutral rim on the product only. */
 const PRODUCT_RIM = 1.1;
 /** Jar diameter. Wider than it is tall. */
@@ -103,22 +137,25 @@ const BRAND_TEXT = 'SAPPHIRE';
 const PRODUCT_BASE_Y = -JAR_HEIGHT * 0.42;
 /** Fitted height of the loaded product, in world units. */
 const PRODUCT_TARGET_HEIGHT = 0.75;
+/** World height of the product's base and top. The water reflects this span. */
+const PRODUCT_WORLD_BOTTOM = 0.05 + PRODUCT_BASE_Y;
+const PRODUCT_WORLD_TOP = PRODUCT_WORLD_BOTTOM + PRODUCT_TARGET_HEIGHT;
 /** Product model. The procedural jar is used if this fails to load. */
 const PRODUCT_MODEL_URL = '/model/product.glb';
 /** Glass index of refraction. */
 const GLASS_IOR = 1.5;
 /** Glass volume thickness, in the mesh's coordinate space. */
-const GLASS_THICKNESS = 0.2;
+const GLASS_THICKNESS = 0.6;
 /** Near zero so the jar stays clear, not frosted. */
-const GLASS_ROUGHNESS = 0.02;
+const GLASS_ROUGHNESS = 0.06;
 /** Faint cool white. Kept off blue so the glass stays clear. */
-const GLASS_TINT = '#f4f6f8';
+const GLASS_TINT = '#cfe0ff';
 /** How far light travels in the glass before the tint takes hold. */
-const GLASS_ATTENUATION_DISTANCE = 8;
+const GLASS_ATTENUATION_DISTANCE = 2.2;
 /** Just under clear, so the cream and the studio reflections stay visible. */
-const GLASS_TRANSMISSION = 0.92;
+const GLASS_TRANSMISSION = 0.78;
 /** Neutral studio reflections on the glass. Crisp white strips, no blue. */
-const PRODUCT_ENV_INTENSITY = 1.35;
+const PRODUCT_ENV_INTENSITY = 1.7;
 /** Cream inside the jar. */
 const CREAM_COLOR = '#f3ece2';
 /** How strongly the cream reflects the neutral studio. Kept low. */
@@ -129,8 +166,18 @@ const CREAM_FILL = 0.85;
 const CREAM_WALL_GAP = 0.08;
 /** Lid reflections. Low, so the metal does not take a blue cast. */
 const LID_ENV_INTENSITY = 0.3;
+/** Build the lid as a sapphire in code. Blender's Glass BSDF does not export to glTF, so the glb lid arrives as plain white. */
+const LID_AS_SAPPHIRE = true;
+/** Body color of the sapphire lid. Light passing through it takes this tint. */
+const LID_SAPPHIRE_COLOR = '#2c58ff';
+/** Self-glow that keeps the lid blue against the dark scene. Transparent glass alone goes black here. */
+const LID_SAPPHIRE_GLOW = '#0a2c9a';
+/** Strength of that glow. 0 is pure glass. Above 1 the lid looks lit from inside. */
+const LID_SAPPHIRE_GLOW_INTENSITY = 0.55;
+/** How strongly the lid reflects the studio panels. These are the white glints on the facets. */
+const LID_SAPPHIRE_ENV_INTENSITY = 1.8;
 /** When true, the label ignores lights and keeps the texture's own color. */
-const LABEL_UNLIT = false;
+const LABEL_UNLIT = true;
 /** How far the product yaws toward the pointer, in radians. */
 const PRODUCT_MOUSE_TURN = 0.18;
 /** Hot center of the backlight. Warm it for ruby, cool it for emerald or diamond. */
@@ -222,7 +269,7 @@ function bandU(i: number, count: number, salt: number) {
 
 function makeGems(): Gem[] {
   const largeU = [0.0, 0.055, 0.985].slice(0, NEAR_GEM_COUNT);
-  const largeScale = [1.52, 1.24, 1.4];
+  const largeScale = [1.18, 1.24, 1.4];
   const large: Gem[] = largeU.map((u, i) => ({
     tier: 'large',
     u,
@@ -230,12 +277,13 @@ function makeGems(): Gem[] {
     speed: ORBIT_SPEED * (0.35 + i * 0.12),
     spin: 0.05 + i * 0.03,
     phase: i * 2.2,
-    tilt: -0.4 + i * 0.45,
-    roll: 0.2 - i * 0.28,
+    // Gem 0 is tipped toward the camera so the crown facets catch the lights, not the dark pavilion.
+    tilt: [0.85, 0.05, 0.5][i] ?? 0,
+    roll: [0.38, -0.08, -0.36][i] ?? 0,
     drift: 0.012,
     jitter: (
       [
-        [-0.78, -0.48, 0.16],
+        [-0.55, -0.34, 0.1],
         [-0.58, 0.72, -0.12],
         [0.04, -0.04, 0.04],
       ] as [number, number, number][]
@@ -438,6 +486,7 @@ function Studio() {
   const camera = useThree((s) => s.camera);
   const key = useRef<THREE.DirectionalLight>(null);
   const rim = useRef<THREE.DirectionalLight>(null);
+  const backlight = useRef<THREE.DirectionalLight>(null);
   const sky = useRef<THREE.ShaderMaterial>(null);
   const coreDir = useMemo(() => {
     const spot = new THREE.Vector3();
@@ -449,6 +498,7 @@ function Studio() {
     camera.layers.enable(PRODUCT_LAYER);
     key.current?.layers.set(PRODUCT_LAYER);
     rim.current?.layers.set(PRODUCT_LAYER);
+    backlight.current?.layers.set(PRODUCT_LAYER);
   }, [camera]);
 
   useFrame(() => {
@@ -523,11 +573,26 @@ function Studio() {
             scale={[14, 6, 1]}
           />
           <Lightformer form="circle" intensity={1.2} color="#2458f0" position={[0, -1.1, -0.4]} scale={[16, 11, 1]} />
+          {/* One small warm accent. Throws amber glints across the facets against the blue. */}
+          <Lightformer
+            form="rect"
+            intensity={3.4}
+            color="#ffb66e"
+            position={[3.4, 2.3, -2.2]}
+            rotation={stripFacing([3.4, 2.3, -2.2], -0.7)}
+            scale={[2.6, 0.18, 1]}
+          />
         </Environment>
       </Suspense>
 
       <directionalLight ref={key} position={[0.35, 0.7, 2.6]} intensity={PRODUCT_KEY} color="#fff8f2" />
       <directionalLight ref={rim} position={[-2.4, 1.2, 2.8]} intensity={PRODUCT_RIM} color="#f3f5f8" />
+      <directionalLight
+        ref={backlight}
+        position={[2.8, 1.5, -2.6]}
+        intensity={PRODUCT_BACKLIGHT}
+        color={PRODUCT_BACKLIGHT_COLOR}
+      />
 
       <mesh name="studio-sky" frustumCulled={false} renderOrder={-1}>
         <sphereGeometry args={[30, 24, 16]} />
@@ -730,7 +795,7 @@ function Core() {
                   vec2 uv = vUv - 0.5;
                   float across = exp(-pow(abs(uv.y) * 2.0, 2.0) * 14.0);
                   float along = exp(-pow(abs(uv.x) * 2.0, 2.0) * 1.1);
-                  float a = across * along * 0.028;
+                  float a = across * along * ${FLARE_STRENGTH.toFixed(4)};
                   gl_FragColor = vec4(uColor, a);
                 }
               `}
@@ -740,6 +805,70 @@ function Core() {
       </group>
       <pointLight ref={light} color={CORE_COLOR} intensity={CORE_INTENSITY * 6} distance={16} decay={2} />
     </>
+  );
+}
+
+/** Soft god rays fanning out from the core, drifting slowly. Sits behind the product. */
+function Shafts() {
+  const mesh = useRef<THREE.Mesh>(null);
+  const material = useRef<THREE.ShaderMaterial>(null);
+  const spot = useMemo(() => new THREE.Vector3(), []);
+  const color = useMemo(() => new THREE.Color(SHAFT_COLOR), []);
+
+  useFrame((state) => {
+    coreOffset(state.camera.position, spot);
+    if (mesh.current) {
+      mesh.current.position.copy(spot);
+      mesh.current.quaternion.copy(state.camera.quaternion);
+    }
+    if (material.current) material.current.uniforms.uTime.value = state.clock.elapsedTime;
+  });
+
+  return (
+    <mesh ref={mesh} scale={[15, 15, 1]} frustumCulled={false} renderOrder={1}>
+      <planeGeometry args={[1, 1]} />
+      <shaderMaterial
+        ref={material}
+        transparent
+        depthWrite={false}
+        toneMapped={false}
+        blending={THREE.AdditiveBlending}
+        side={THREE.DoubleSide}
+        uniforms={{
+          uColor: { value: color },
+          uIntensity: { value: SHAFT_INTENSITY },
+          uTime: { value: 0 },
+        }}
+        vertexShader={`
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `}
+        fragmentShader={`
+          uniform vec3 uColor;
+          uniform float uIntensity;
+          uniform float uTime;
+          varying vec2 vUv;
+          ${NOISE_GLSL}
+          void main() {
+            vec2 p = (vUv - 0.5) * 2.0;
+            float r = length(p);
+            vec2 dir = p / max(r, 1e-4);
+            // Sample noise on the unit circle so the rays have no seam.
+            float n = noise(dir * 3.2 + vec2(uTime * 0.035, 0.0)) * 0.55;
+            n += noise(dir * 7.5 - vec2(0.0, uTime * 0.05) + 4.7) * 0.3;
+            n += noise(dir * 15.0 + vec2(uTime * 0.02, 9.1)) * 0.15;
+            float ray = smoothstep(0.42, 0.82, n);
+            float falloff = smoothstep(1.0, 0.04, r);
+            falloff *= falloff;
+            float a = ray * falloff * uIntensity;
+            gl_FragColor = vec4(uColor, a);
+          }
+        `}
+      />
+    </mesh>
   );
 }
 
@@ -889,7 +1018,7 @@ function Dust() {
   useLayoutEffect(() => {
     const color = new THREE.Color(DUST_COLOR);
     motes.forEach((mote, i) => {
-      mesh.current?.setColorAt(i, color.clone().multiplyScalar(mote.bright ? 1.55 : 0.16));
+      mesh.current?.setColorAt(i, color.clone().multiplyScalar(mote.bright ? 0.9 : 0.16));
     });
     if (mesh.current?.instanceColor) mesh.current.instanceColor.needsUpdate = true;
   }, [motes]);
@@ -906,7 +1035,7 @@ function Dust() {
         mote.y + Math.sin(t * 0.07 + mote.phase * 1.3) * 0.28,
         mote.z + Math.cos(t * 0.04 + mote.phase) * 0.4,
       );
-      dummy.scale.setScalar(mote.size * (mote.bright ? 2.4 : 1));
+      dummy.scale.setScalar(mote.size * (mote.bright ? 1.7 : 1));
       dummy.quaternion.copy(state.camera.quaternion);
       dummy.updateMatrix();
       inst.setMatrixAt(i, dummy.matrix);
@@ -1071,7 +1200,11 @@ function fitProduct(root: THREE.Object3D) {
   return fitted.max.x - fitted.min.x;
 }
 
-function buildProductStudio(gl: THREE.WebGLRenderer) {
+/**
+ * `soft` adds broad, dimmer panels all around the product. Faceted glass and metal reflect one
+ * direction per facet, so they need something bright in every direction.
+ */
+function buildProductStudio(gl: THREE.WebGLRenderer, soft = false) {
   const room = new THREE.Scene();
   room.background = new THREE.Color('#1e1e22');
   const shell = new THREE.Mesh(
@@ -1096,6 +1229,15 @@ function buildProductStudio(gl: THREE.WebGLRenderer) {
   addStrip('#fff6ea', 5.5, new THREE.Vector3(-1.6, 2.2, -4.2), new THREE.Vector2(0.36, 5));
   addStrip('#f4f4f2', 1.35, new THREE.Vector3(0.4, 1.6, 6.5), new THREE.Vector2(9, 6));
 
+  if (soft) {
+    addStrip('#ffffff', 3.2, new THREE.Vector3(-4.6, 3.2, 2.2), new THREE.Vector2(4.5, 3));
+    addStrip('#e4ecff', 2.8, new THREE.Vector3(4.8, 2.6, 1.6), new THREE.Vector2(4.5, 3));
+    addStrip('#fff4e4', 3.4, new THREE.Vector3(2.2, 4.4, 3.6), new THREE.Vector2(3, 1.6));
+    addStrip('#d6e0ff', 2.2, new THREE.Vector3(0, 0.8, -5.2), new THREE.Vector2(9, 4));
+    addStrip('#ffffff', 1.8, new THREE.Vector3(0, -3.8, 3), new THREE.Vector2(8, 3));
+    addStrip('#ffffff', 3, new THREE.Vector3(-3.4, -1.2, -2.8), new THREE.Vector2(3.5, 2.4));
+  }
+
   const target = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType });
   target.texture.mapping = THREE.CubeReflectionMapping;
   const camera = new THREE.CubeCamera(0.1, 40, target);
@@ -1115,9 +1257,9 @@ function buildProductStudio(gl: THREE.WebGLRenderer) {
   return target.texture;
 }
 
-function useProductStudio() {
+function useProductStudio(soft = false) {
   const gl = useThree((s) => s.gl);
-  const envMap = useMemo(() => buildProductStudio(gl), [gl]);
+  const envMap = useMemo(() => buildProductStudio(gl, soft), [gl, soft]);
   useEffect(() => () => envMap.dispose(), [envMap]);
   return envMap;
 }
@@ -1181,7 +1323,7 @@ function addCream(root: THREE.Object3D, envMap: THREE.Texture) {
   root.add(cream);
 }
 
-function dressProduct(root: THREE.Object3D, envMap: THREE.Texture) {
+function dressProduct(root: THREE.Object3D, envMap: THREE.Texture, lidEnvMap: THREE.Texture) {
   const log = !productNamesLogged;
   root.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
@@ -1215,7 +1357,31 @@ function dressProduct(root: THREE.Object3D, envMap: THREE.Texture) {
       return;
     }
     if (role === 'lid') {
-      source.envMap = envMap;
+      if (LID_AS_SAPPHIRE) {
+        source.dispose();
+        mesh.material = new THREE.MeshPhysicalMaterial({
+          color: '#ffffff',
+          metalness: 0,
+          roughness: 0.02,
+          transmission: 1,
+          transparent: true,
+          ior: GEM_IOR,
+          thickness: 0.5,
+          attenuationColor: LID_SAPPHIRE_COLOR,
+          attenuationDistance: 0.4,
+          emissive: LID_SAPPHIRE_GLOW,
+          emissiveIntensity: LID_SAPPHIRE_GLOW_INTENSITY,
+          specularIntensity: 1,
+          specularColor: '#ffffff',
+          clearcoat: 1,
+          clearcoatRoughness: 0.02,
+          side: THREE.DoubleSide,
+          envMap: lidEnvMap,
+          envMapIntensity: LID_SAPPHIRE_ENV_INTENSITY,
+        });
+        return;
+      }
+      source.envMap = lidEnvMap;
       if ('envMapIntensity' in source) source.envMapIntensity = LID_ENV_INTENSITY;
       return;
     }
@@ -1335,14 +1501,22 @@ function ProceduralJar({ onWidth }: { onWidth: (width: number) => void }) {
   );
 }
 
-function LoadedProduct({ envMap, onWidth }: { envMap: THREE.Texture; onWidth: (width: number) => void }) {
+function LoadedProduct({
+  envMap,
+  lidEnvMap,
+  onWidth,
+}: {
+  envMap: THREE.Texture;
+  lidEnvMap: THREE.Texture;
+  onWidth: (width: number) => void;
+}) {
   const { scene } = useGLTF(PRODUCT_MODEL_URL);
   const [fitted, setFitted] = useState<THREE.Object3D | null>(null);
 
   useLayoutEffect(() => {
     const root = cloneProduct(scene);
     const width = fitProduct(root);
-    dressProduct(root, envMap);
+    dressProduct(root, envMap, lidEnvMap);
     addCream(root, envMap);
     onWidth(width);
     setFitted(root);
@@ -1350,7 +1524,7 @@ function LoadedProduct({ envMap, onWidth }: { envMap: THREE.Texture; onWidth: (w
       disposeProduct(root);
       setFitted(null);
     };
-  }, [scene, envMap, onWidth]);
+  }, [scene, envMap, lidEnvMap, onWidth]);
 
   if (!fitted) return null;
   return <primitive object={fitted} />;
@@ -1402,6 +1576,7 @@ function Product() {
   const yaw = useRef(0);
   const [width, setWidth] = useState(JAR_WIDTH);
   const envMap = useProductStudio();
+  const lidEnvMap = useProductStudio(true);
   const fallback = <ProceduralJar onWidth={setWidth} />;
 
   useFrame((state, rawDelta) => {
@@ -1417,7 +1592,7 @@ function Product() {
     <group name="PRODUCT_SLOT" position={[0, 0.05, 0]}>
       <group ref={model} name="PRODUCT_MODEL" position={[0, PRODUCT_BASE_Y, 0]}>
         <ProductBoundary fallback={fallback}>
-          <Suspense fallback={fallback}>{<LoadedProduct envMap={envMap} onWidth={setWidth} />}</Suspense>
+          <Suspense fallback={fallback}>{<LoadedProduct envMap={envMap} lidEnvMap={lidEnvMap} onWidth={setWidth} />}</Suspense>
         </ProductBoundary>
       </group>
       <ContactGlow width={width} />
@@ -1581,9 +1756,9 @@ function Gems() {
             bounces={gem.tier === 'large' ? 6 : 4}
             ior={GEM_IOR}
             fresnel={0.8}
-            aberrationStrength={gem.tier === 'large' ? 0 : 0.02}
-            fastChroma={gem.tier !== 'large'}
-            color={GEM_COLOR}
+            aberrationStrength={gem.tier === 'large' ? 0.03 : 0.02}
+            fastChroma
+            color={gem.tier === 'large' ? LARGE_GEM_COLOR : GEM_COLOR}
             onBeforeCompile={gem.tier === 'large' ? liftLargeGem : liftMidGem}
           />
         </mesh>
@@ -1607,16 +1782,24 @@ function Gems() {
 }
 
 function Look() {
-  const look = useMemo(() => new THREE.Vector3(0, 0.05, 0), []);
+  const look = useMemo(() => new THREE.Vector3(0, -0.1, 0), []);
   const goal = useMemo(() => new THREE.Vector3(), []);
+  const reduceMotion = useMemo(
+    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    [],
+  );
 
   useFrame((state, rawDelta) => {
     const delta = Math.min(rawDelta, 0.05);
     const sway = Math.sin(state.clock.elapsedTime * CAMERA_ORBIT_SPEED) * CAMERA_SWAY;
+    // Slow push-in on load: ease-out so the camera glides to rest instead of stopping.
+    const progress = reduceMotion ? 1 : Math.min(state.clock.elapsedTime / INTRO_SECONDS, 1);
+    const intro = Math.pow(1 - progress, 3);
+    const distance = CAMERA_DISTANCE + INTRO_PUSH * intro;
     goal.set(
-      Math.sin(sway) * CAMERA_DISTANCE + state.pointer.x * CAMERA_PARALLAX,
-      CAMERA_HEIGHT - state.pointer.y * CAMERA_PARALLAX * 0.45,
-      Math.cos(sway) * CAMERA_DISTANCE,
+      Math.sin(sway) * distance + state.pointer.x * CAMERA_PARALLAX,
+      CAMERA_HEIGHT + INTRO_RISE * intro - state.pointer.y * CAMERA_PARALLAX * 0.45,
+      Math.cos(sway) * distance,
     );
     state.camera.position.lerp(goal, 1 - Math.exp(-2.4 * delta));
     state.camera.lookAt(look);
@@ -1663,7 +1846,11 @@ function Grade() {
       ),
     );
     effect.addPass(new EffectPass(camera, new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC })));
-    effect.addPass(new EffectPass(camera, new VignetteEffect({ darkness: VIGNETTE_STRENGTH, offset: 0.18 })));
+    const grain = new NoiseEffect({ blendFunction: BlendFunction.OVERLAY, premultiply: true });
+    grain.blendMode.opacity.value = GRAIN_OPACITY;
+    effect.addPass(
+      new EffectPass(camera, new VignetteEffect({ darkness: VIGNETTE_STRENGTH, offset: 0.18 }), grain),
+    );
     return effect;
   }, [gl, scene, camera]);
 
@@ -1686,10 +1873,21 @@ export function SapphiresScene() {
     <>
       <Studio />
       <Core />
+      {RAYS_ENABLED && <Shafts />}
       <Haze />
+      {WATER_ENABLED && (
+        <Water
+          background={BACKGROUND_COLOR}
+          coreColor={CORE_COLOR}
+          coreDistance={Math.abs(CORE_Z)}
+          coreHeight={CORE_Y}
+          jar={{ radius: REFLECTION_RADIUS, bottom: PRODUCT_WORLD_BOTTOM, top: PRODUCT_WORLD_TOP }}
+        />
+      )}
+      {GROUND_FOG_ENABLED && <GroundFog coreDistance={Math.abs(CORE_Z)} />}
       <Dust />
       <Product />
-      <GlitterStream />
+      {GLITTER_ENABLED && <GlitterStream />}
       <Gems />
       <Look />
       <Grade />
