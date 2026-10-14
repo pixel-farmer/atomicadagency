@@ -16,10 +16,10 @@ const GLITTER_FIELD_HEIGHT = 1.1;
 /** Flakes are kept outside this radius around the jar so none sit inside it. */
 const GLITTER_JAR_CLEAR = 0.75;
 /** Coin radius range, in world units. */
-const GLITTER_SIZE_MIN = 0.012;
-const GLITTER_SIZE_MAX = 0.03;
+const GLITTER_SIZE_MIN = 0.016;
+const GLITTER_SIZE_MAX = 0.021
 /** Coin thickness as a fraction of its radius. */
-const GLITTER_THICKNESS = 0.14;
+const GLITTER_THICKNESS = 0.09;
 /** Tumble speed range, radians per second. Low keeps the spin slow and lazy. */
 const GLITTER_SPIN_MIN = 0.25;
 const GLITTER_SPIN_MAX = 0.9;
