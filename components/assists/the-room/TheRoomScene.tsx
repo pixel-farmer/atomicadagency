@@ -4,6 +4,7 @@ import { useGLTF, useTexture } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { TheRoomAtmosphere, TheRoomGrade } from '@/components/assists/the-room/TheRoomAtmosphere';
 import { TheRoomSunlight } from '@/components/assists/the-room/TheRoomSunlight';
 import { TheRoomRightWallWindows } from '@/components/assists/the-room/TheRoomWindows';
 import { roomTouchInput } from '@/components/assists/the-room/theRoomPuzzle';
@@ -165,9 +166,14 @@ function FirstPersonControls() {
   return null;
 }
 
-const WALL_COLOR = '#8ba2a8';
-const CEILING_COLOR = '#c8d6df';
-const FLOOR_COLOR = '#816349';
+/** Fill light in the room. Lower is darker and lets the window light stand out. */
+const AMBIENT_LIGHT = 0.3;
+/** Self-glow of the walls, ceiling and floor, as a multiplier. 1 is the old level, 0 is none. */
+const SURFACE_GLOW = 0.3;
+
+const WALL_COLOR = '#666666';
+const CEILING_COLOR = '#888888';
+const FLOOR_COLOR = '#777777';
 const FLOOR_TEXTURE = '/wood-diamond.jpg';
 const PEDESTAL_PATH = '/StonePedestal.glb';
 /** Uniform scale. 1 is the model’s own size, about 0.9 m tall, and the base stays on the floor. */
@@ -222,9 +228,9 @@ function RoomShell() {
         roughness: 0.95,
         side: THREE.BackSide,
       });
-    const wall = surface(WALL_COLOR, 0.35);
-    const ceiling = surface(CEILING_COLOR, 0.55);
-    const floor = surface(FLOOR_COLOR, 0.25);
+    const wall = surface(WALL_COLOR, 0.35 * SURFACE_GLOW);
+    const ceiling = surface(CEILING_COLOR, 0.55 * SURFACE_GLOW);
+    const floor = surface(FLOOR_COLOR, 0.25 * SURFACE_GLOW);
     return [wall, wall, ceiling, floor, wall, wall];
   }, []);
 
@@ -241,7 +247,7 @@ export function TheRoomScene() {
   return (
     <>
       <color attach="background" args={[WALL_COLOR]} />
-      <hemisphereLight args={['#f2f7fa', '#9aa892', 1.1]} />
+      <hemisphereLight args={['#f2f7fa', '#9aa892', AMBIENT_LIGHT]} />
 
       <RoomShell />
       <TheRoomSunlight roomWidth={ROOM_WIDTH} roomDepth={ROOM_DEPTH} roomHeight={ROOM_HEIGHT} />
@@ -251,7 +257,10 @@ export function TheRoomScene() {
         <StonePedestal />
       </Suspense>
 
+      <TheRoomAtmosphere roomWidth={ROOM_WIDTH} roomDepth={ROOM_DEPTH} roomHeight={ROOM_HEIGHT} />
+
       <FirstPersonControls />
+      <TheRoomGrade />
     </>
   );
 }

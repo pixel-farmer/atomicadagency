@@ -23,7 +23,7 @@ export function TheRoomExperience() {
         canvasClassName="h-full w-full touch-none"
         cameraPosition={[0, 1.6, 6]}
         cameraFov={60}
-        dpr={[1, 1.75]}
+        dpr={[1, 1.5]}
         shadows
         transparent={false}
       >

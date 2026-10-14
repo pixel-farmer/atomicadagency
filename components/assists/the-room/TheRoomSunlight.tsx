@@ -1,7 +1,7 @@
 'use client';
 
-import { useFrame } from '@react-three/fiber';
-import { useEffect, useMemo } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import { useEffect, useLayoutEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import {
   ARCH_SPRING_Y,
@@ -16,11 +16,24 @@ import {
 /** Direction the sunlight travels: in through the right wall (-X), down, and a little toward the back. */
 const SUN_DIRECTION = new THREE.Vector3(-1, -0.8, -0.3).normalize();
 const SUN_COLOR = '#fff1d6';
-const SUN_INTENSITY = 3.2;
+const SUN_INTENSITY = 4.4;
+
+/** Slow sun drift, passing clouds and warm/cool shift. 1 is gentle, 0 freezes the light. */
+const SUN_DRIFT = 0;
+
+/** Softness of the shadow edges, in shadow-map texels. 1 is nearly sharp, 8 is soft, 15 is very blurry. */
+const SHADOW_BLUR = 3;
+/** Samples used for the blur. More is smoother and costs more. 8 to 25 is a sensible range. */
+const SHADOW_BLUR_SAMPLES = 6;
+const SUN_COLOR_COOL = new THREE.Color('#fff6ea');
+const SUN_COLOR_WARM = new THREE.Color('#ffd49a');
+
+/** Live sun state, updated every frame. The dust reads it to know which air is in sunlight. */
+export const roomSun = { direction: SUN_DIRECTION.clone(), cloud: 1 };
 
 /** The shafts of light you can see in the air (same streak idea as reactbits/lightrays). */
 const BEAM_COLOR = '#fff3dc';
-const BEAM_INTENSITY = 0.16;
+const BEAM_INTENSITY = 0.24;
 /** How far into the room (meters, horizontally) the shafts reach before fading out. */
 const BEAM_LENGTH = 14;
 const BEAM_SPEED = 1;
@@ -77,7 +90,8 @@ void main() {
   float lengthFade = 1.0 - smoothstep(0.0, uLength, vAlong);
   float floorFade = smoothstep(0.0, 1.8, vWorldPos.y);
   float a = streak * soft * fromWindow * lengthFade * floorFade * uIntensity;
-  gl_FragColor = vec4(uColor * a, 1.0);
+  // The scene is graded after drawing, so write linear values that look the same once encoded.
+  gl_FragColor = vec4(pow(uColor * a, vec3(2.2)), 1.0);
 }
 `;
 
@@ -229,6 +243,8 @@ export function TheRoomSunlight({
     light.target.position.set(0, 0, 0);
     light.castShadow = true;
     light.shadow.mapSize.set(2048, 2048);
+    light.shadow.radius = SHADOW_BLUR;
+    light.shadow.blurSamples = SHADOW_BLUR_SAMPLES;
     const reach = Math.max(roomWidth, roomDepth) * 0.9;
     const cam = light.shadow.camera;
     cam.left = -reach;
@@ -237,12 +253,67 @@ export function TheRoomSunlight({
     cam.bottom = -reach;
     cam.near = 1;
     cam.far = 70;
-    light.shadow.bias = -0.0004;
+    light.shadow.bias = -0.0002;
     light.shadow.normalBias = 0.03;
     return light;
   }, [roomWidth, roomDepth]);
 
   useEffect(() => () => sun.dispose(), [sun]);
+
+  // The default shadow filter ignores `radius`. Variance shadow maps honor it, so the blur works.
+  const gl = useThree((state) => state.gl);
+  const scene = useThree((state) => state.scene);
+  useLayoutEffect(() => {
+    gl.shadowMap.type = THREE.VSMShadowMap;
+    // With a fixed sun nothing in the shadow map moves, so it is only redrawn when the scene changes.
+    gl.shadowMap.autoUpdate = SUN_DRIFT !== 0;
+    gl.shadowMap.needsUpdate = true;
+    return () => {
+      gl.shadowMap.autoUpdate = true;
+    };
+  }, [gl]);
+
+  // Models load in after the first frame. Watch for shadow casters appearing and redraw then.
+  const shadowWatch = useMemo(() => ({ elapsed: 0, casters: -1 }), []);
+  useFrame((_, delta) => {
+    if (SUN_DRIFT !== 0) return;
+    shadowWatch.elapsed += delta;
+    if (shadowWatch.elapsed < 0.5) return;
+    shadowWatch.elapsed = 0;
+    let casters = 0;
+    scene.traverse((obj) => {
+      if (obj.castShadow) casters++;
+    });
+    if (casters !== shadowWatch.casters) {
+      shadowWatch.casters = casters;
+      gl.shadowMap.needsUpdate = true;
+    }
+  });
+
+  // The sun creeps across the sky so the window light crawls over the floor, thin clouds pass
+  // in front of it, and the color warms and cools over a few minutes.
+  useFrame((state) => {
+    const t = state.clock.elapsedTime * SUN_DRIFT;
+    const dir = roomSun.direction
+      .set(
+        SUN_DIRECTION.x,
+        SUN_DIRECTION.y + Math.sin(t * 0.027 + 1.3) * 0.1,
+        SUN_DIRECTION.z + Math.sin(t * 0.035) * 0.22,
+      )
+      .normalize();
+    roomSun.cloud = 0.7 + 0.3 * (0.5 + 0.5 * Math.sin(t * 0.19) * Math.sin(t * 0.11 + 1.7));
+    const warm = 0.5 + 0.5 * Math.sin(t * 0.02 - 1);
+
+    sun.position.copy(dir).multiplyScalar(-30);
+    sun.color.copy(SUN_COLOR_COOL).lerp(SUN_COLOR_WARM, warm);
+    sun.intensity = SUN_INTENSITY * roomSun.cloud;
+
+    const u = beamMaterial.uniforms;
+    // Window groups face into the room with rotation -PI/2 about Y: local +Z = world -X.
+    (u.uShear.value as THREE.Vector2).set(dir.z / -dir.x, dir.y / -dir.x);
+    (u.uColor.value as THREE.Color).copy(sun.color);
+    u.uIntensity.value = BEAM_INTENSITY * roomSun.cloud;
+  });
 
   return (
     <>

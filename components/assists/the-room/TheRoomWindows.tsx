@@ -7,10 +7,12 @@ import * as THREE from 'three';
 import { skyCloudsGlsl } from '@/components/assists/the-room/skyClouds';
 
 const FRAME_PATH = '/arched-window.glb';
-const FRAME_COLOR = '#f3f0ea';
+const FRAME_COLOR = '#cccccc';
 const GLASS_TINT = '#b8d4ec';
 const SKY_HORIZON = '#a9cbe3';
 const SKY_ZENITH = '#7fb0d6';
+/** Brightness of the sky past 1 so the windows bloom like overexposed daylight. 1 is the plain sky. */
+const SKY_GLOW = 1.7;
 
 /** Clear space below each window (meters). The 8 m frame then leaves about 2 m above it too. */
 const WINDOW_MARGIN = 2;
@@ -66,11 +68,10 @@ function useWindowMaterials() {
       roughness: 0.18,
       metalness: 0,
       specularIntensity: 0.35,
+      // A faint tinted film over the sky. Real transmission would re-render the whole room every
+      // frame for no visible gain, since the sky behind the glass is a flat shader.
       transparent: true,
-      opacity: 0.92,
-      transmission: 0.88,
-      thickness: 0.015,
-      ior: 1.45,
+      opacity: 0.3,
       envMapIntensity: 0.6,
       side: THREE.DoubleSide,
     });
@@ -98,7 +99,7 @@ function useWindowMaterials() {
         ${skyCloudsGlsl}
         void main() {
           vec3 dir = normalize(vWorldPos - cameraPosition);
-          gl_FragColor = vec4(skyWithClouds(dir, uTime, uHorizon, uZenith), 1.0);
+          gl_FragColor = vec4(skyWithClouds(dir, uTime, uHorizon, uZenith) * ${SKY_GLOW.toFixed(3)}, 1.0);
           #include <colorspace_fragment>
         }
       `,
