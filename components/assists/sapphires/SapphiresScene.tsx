@@ -127,6 +127,8 @@ const JAR_HEIGHT = 0.58;
 const LID_HEIGHT = 0.18;
 /** Warm pearl. The jar stays out of the blue cast. */
 const JAR_COLOR = '#f0e9df';
+/** Soft glow on the ground under the jar. Dark navy so it reads as a shadow pool, not a pale disc. */
+const CONTACT_GLOW_COLOR = '#97a7e3';
 /** Brushed silver for the lid. */
 const LID_COLOR = '#c8ccd2';
 /** Radians per second. Slow enough that the lid highlights travel. */
@@ -145,21 +147,23 @@ const PRODUCT_MODEL_URL = '/model/product.glb';
 /** Glass index of refraction. */
 const GLASS_IOR = 1.5;
 /** Glass volume thickness, in the mesh's coordinate space. */
-const GLASS_THICKNESS = 0.6;
+const GLASS_THICKNESS = 1.2;
 /** Near zero so the jar stays clear, not frosted. */
 const GLASS_ROUGHNESS = 0.06;
 /** Faint cool white. Kept off blue so the glass stays clear. */
 const GLASS_TINT = '#cfe0ff';
 /** How far light travels in the glass before the tint takes hold. */
-const GLASS_ATTENUATION_DISTANCE = 2.2;
-/** Just under clear, so the cream and the studio reflections stay visible. */
-const GLASS_TRANSMISSION = 0.78;
-/** Neutral studio reflections on the glass. Crisp white strips, no blue. */
-const PRODUCT_ENV_INTENSITY = 1.7;
+const GLASS_ATTENUATION_DISTANCE = 3;
+/** 1 is fully see-through. Lower values add a milky white layer that hides the cream. */
+const GLASS_TRANSMISSION = 1;
+/** Neutral studio reflections on the glass. Too high and they wash out the view of the cream. */
+const PRODUCT_ENV_INTENSITY = 1.8;
 /** Cream inside the jar. */
-const CREAM_COLOR = '#f3ece2';
+const CREAM_COLOR = '#e6d9c6';
 /** How strongly the cream reflects the neutral studio. Kept low. */
 const CREAM_ENV_INTENSITY = 0.2;
+/** Self-light on the cream so it reads through the glass in the dark scene. 0 turns it off. */
+const CREAM_GLOW = 0.08;
 /** How full the jar is, as a fraction of the inner height. */
 const CREAM_FILL = 0.85;
 /** Gap between the cream and the glass, as a fraction of the inner radius. */
@@ -1272,6 +1276,8 @@ function creamMaterial(envMap: THREE.Texture) {
     sheen: 0.45,
     sheenRoughness: 0.55,
     sheenColor: CREAM_COLOR,
+    emissive: CREAM_COLOR,
+    emissiveIntensity: CREAM_GLOW,
     envMap,
     envMapIntensity: CREAM_ENV_INTENSITY,
   });
@@ -1349,7 +1355,7 @@ function dressProduct(root: THREE.Object3D, envMap: THREE.Texture, lidEnvMap: TH
         attenuationDistance: GLASS_ATTENUATION_DISTANCE,
         specularIntensity: 1,
         specularColor: '#ffffff',
-        clearcoat: 0.3,
+        clearcoat: 0.1,
         side: THREE.DoubleSide,
         envMap,
         envMapIntensity: PRODUCT_ENV_INTENSITY,
@@ -1531,7 +1537,7 @@ function LoadedProduct({
 }
 
 function ContactGlow({ width }: { width: number }) {
-  const glowColor = useMemo(() => new THREE.Color(JAR_COLOR), []);
+  const glowColor = useMemo(() => new THREE.Color(CONTACT_GLOW_COLOR), []);
   const scale = width / JAR_WIDTH;
 
   return (

@@ -10,6 +10,10 @@ export const WATER_Y = -1.0;
 const WATER_DEEP = '#020a22';
 /** Peak brightness of the jar's reflection. 0 removes it. */
 const JAR_REFLECTION = 0.7;
+/** Color of the jar body's reflection. Pale white-blue, like the jar itself. */
+const JAR_REFLECTION_BODY = '#c7dbff';
+/** Color of the lid's reflection. */
+const JAR_REFLECTION_LID = '#1a42ff';
 /** Ripple strength. Higher is choppier and breaks the reflection up more. */
 const RIPPLE = 0.075;
 /** How quickly the surface fades into the background with distance. Higher fades sooner. */
@@ -60,6 +64,8 @@ const WATER_FRAGMENT = /* glsl */ `
   uniform vec3 uDeep;
   uniform vec3 uCoreColor;
   uniform vec4 uJar;
+  uniform vec3 uJarBody;
+  uniform vec3 uJarLid;
   varying vec3 vWorld;
   ${WATER_NOISE}
 
@@ -111,8 +117,8 @@ const WATER_FRAGMENT = /* glsl */ `
         float maskU = 1.0 - smoothstep(uJar.x - blur, uJar.x + blur, abs(u));
         float maskV = smoothstep(uJar.y - blur, uJar.y + blur, v) * (1.0 - smoothstep(uJar.z - blur, uJar.z + blur, v));
         float mask = maskU * maskV * exp(-tHit * 0.22);
-        vec3 body = vec3(0.78, 0.86, 1.0);
-        vec3 lid = vec3(0.1, 0.26, 1.0);
+        vec3 body = uJarBody;
+        vec3 lid = uJarLid;
         vec3 jarCol = mix(body, lid, smoothstep(uJar.z - 0.2, uJar.z - 0.1, v));
         col += jarCol * mask * uJar.w * refl;
       }
@@ -155,6 +161,8 @@ export function Water({ background, coreColor, coreDistance, coreHeight, jar }: 
       uDeep: { value: new THREE.Color(WATER_DEEP) },
       uCoreColor: { value: new THREE.Color(coreColor) },
       uJar: { value: new THREE.Vector4(jar.radius, jar.bottom, jar.top, JAR_REFLECTION) },
+      uJarBody: { value: new THREE.Color(JAR_REFLECTION_BODY) },
+      uJarLid: { value: new THREE.Color(JAR_REFLECTION_LID) },
     }),
     [background, coreColor, jar.radius, jar.bottom, jar.top],
   );
