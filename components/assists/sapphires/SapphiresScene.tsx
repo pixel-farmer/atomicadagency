@@ -49,7 +49,7 @@ const GEM_IOR = 1.77;
 /** Body tint. Swap for ruby (#9b1b2e), emerald (#0d6b45), or diamond (#f7f8fa). */
 const GEM_COLOR = '#04102b';
 /** Body tint for the three large foreground gems. Brighter than GEM_COLOR so the big stones read as blue glass, not black slabs. */
-const LARGE_GEM_COLOR = GEM_COLOR;
+const LARGE_GEM_COLOR = '#04102b';
 /** How far light travels before the tint takes hold. Higher is clearer. */
 const GEM_ATTENUATION_DISTANCE = 0.95;
 /** 0 keeps the facets sharp. Anything above ~0.05 goes frosted. */
@@ -147,7 +147,7 @@ const JAR_COLOR = '#f0e9df';
 /** Soft glow on the ground under the jar. Dark navy so it reads as a shadow pool, not a pale disc. */
 const CONTACT_GLOW_COLOR = '#97a7e3';
 /** Brushed silver for the lid. */
-const LID_COLOR = '#04102b';
+const LID_COLOR = '#02153f';
 /** Radians per second. Slow enough that the lid highlights travel. */
 const JAR_ROTATION_SPEED = 0.05;
 /** Word on the front of the jar. */
@@ -190,7 +190,7 @@ const LID_ENV_INTENSITY = 0.3;
 /** Build the lid as a sapphire in code. Blender's Glass BSDF does not export to glTF, so the glb lid arrives as plain white. */
 const LID_AS_SAPPHIRE = true;
 /** Body color of the sapphire lid. Light passing through it takes this tint. */
-const LID_SAPPHIRE_COLOR = '#04102b';
+const LID_SAPPHIRE_COLOR = '#02153f';
 /** Self-glow that keeps the lid blue against the dark scene. Transparent glass alone goes black here. */
 const LID_SAPPHIRE_GLOW = '#0a2c9a';
 /** Strength of that glow. 0 is pure glass. Above 1 the lid looks lit from inside. */
