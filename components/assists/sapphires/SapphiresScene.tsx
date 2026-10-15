@@ -95,7 +95,7 @@ const INTRO_RISE = 0.55;
 /** Cool backlight on the product's edges. Separates the jar from the dark. */
 const PRODUCT_BACKLIGHT = 3.2;
 /** Color of that backlight. */
-const PRODUCT_BACKLIGHT_COLOR = '#8db3ff';
+const PRODUCT_BACKLIGHT_COLOR = '#4f86ff';
 /** Pale blue of the god rays fanning out from the core. */
 const SHAFT_COLOR = '#5c84ff';
 /** Peak opacity of the rays. Subtle at 0.1, loud above 0.3. */
@@ -113,7 +113,7 @@ const REFLECTION_RADIUS = 0.44;
 /** Strength of the anamorphic flare streaks through the core. */
 const FLARE_STRENGTH = 0.07;
 /** Lens color split. Radial, so it grows toward the frame edges. */
-const CHROMATIC_ABERRATION = 0.0011;
+const CHROMATIC_ABERRATION = 0.0031;
 /** World-unit falloff. Wide, so foreground gems stay only slightly soft. */
 const DOF_RANGE = 9;
 /** Bokeh size. Low, so the near gems don't dissolve into blur. */
@@ -159,28 +159,51 @@ const PRODUCT_TARGET_HEIGHT = 0.75;
 /** World height of the product's base and top. The water reflects this span. */
 const PRODUCT_WORLD_BOTTOM = 0.05 + PRODUCT_BASE_Y;
 const PRODUCT_WORLD_TOP = PRODUCT_WORLD_BOTTOM + PRODUCT_TARGET_HEIGHT;
+/**
+ * true: use the solid jar from Blender (SapphireCreme.glb), keeping its own baked textures and adding
+ * studio reflections to the outer surface. false: the earlier model, with the glass and cream built in code.
+ */
+const PRODUCT_MODEL_SOLID = true;
 /** Product model. The procedural jar is used if this fails to load. */
-const PRODUCT_MODEL_URL = '/model/product.glb';
+const PRODUCT_MODEL_URL = PRODUCT_MODEL_SOLID ? '/model/SapphireCreme.glb' : '/model/product.glb';
+/** How strongly the solid jar mirrors the studio light strips. 0 leaves only its baked look. */
+const SOLID_ENV_INTENSITY = 0.01;
+/** Glossy top coat on the solid jar. 0 is none, 1 is full lacquer. This carries the sharp light-strip reflections. */
+const SOLID_CLEARCOAT = 0.8;
+/** Blur of that coat's reflections. Near 0 is mirror sharp. */
+const SOLID_CLEARCOAT_ROUGHNESS = 0.04;
 /** Glass index of refraction. */
-const GLASS_IOR = 1.5;
+const GLASS_IOR = 1.3;
 /** Glass volume thickness, in the mesh's coordinate space. */
-const GLASS_THICKNESS = 1.2;
+const GLASS_THICKNESS = 0.35;
 /** Near zero so the jar stays clear, not frosted. */
-const GLASS_ROUGHNESS = 0.06;
+const GLASS_ROUGHNESS = 0.12;
 /** Faint cool white. Kept off blue so the glass stays clear. */
-const GLASS_TINT = '#cfe0ff';
+//const GLASS_TINT = '#6f9bff';
+const GLASS_TINT = '#6f9bff';
+/** Bright blue-white line that traces the silhouette of the outer and inner walls. */
+//const GLASS_EDGE_COLOR = '#a9c8ff';
+const GLASS_EDGE_COLOR = '#a9c8ff';
+/** Strength of that edge line. 0 turns it off. */
+const GLASS_EDGE_STRENGTH = 1.4;
+/** Tightness of the edge line. Higher is a thinner line hugging the silhouette. */
+const GLASS_EDGE_POWER = 3;
 /** How far light travels in the glass before the tint takes hold. */
-const GLASS_ATTENUATION_DISTANCE = 3;
+const GLASS_ATTENUATION_DISTANCE = 0.5;
 /** 1 is fully see-through. Lower values add a milky white layer that hides the cream. */
 const GLASS_TRANSMISSION = 1;
 /** Neutral studio reflections on the glass. Too high and they wash out the view of the cream. */
-const PRODUCT_ENV_INTENSITY = 1.8;
+const PRODUCT_ENV_INTENSITY = 0.8;
 /** Cream inside the jar. */
-const CREAM_COLOR = '#e6d9c6';
+const CREAM_COLOR = '#8fb0ff';
 /** How strongly the cream reflects the neutral studio. Kept low. */
 const CREAM_ENV_INTENSITY = 0.2;
 /** Self-light on the cream so it reads through the glass in the dark scene. 0 turns it off. */
-const CREAM_GLOW = 0.08;
+const CREAM_GLOW = 0.9;
+/** Color of that self-light. A saturated sapphire blue makes the jar glow from inside. */
+const CREAM_GLOW_COLOR = '#1a4bff';
+/** How much the glow fades toward the jar's edges. 0 is flat, 1 leaves the edges dark. */
+const CREAM_GLOW_FALLOFF = 0.85;
 /** How full the jar is, as a fraction of the inner height. */
 const CREAM_FILL = 0.85;
 /** Gap between the cream and the glass, as a fraction of the inner radius. */
@@ -202,7 +225,7 @@ const LABEL_UNLIT = true;
 /** How far the product yaws toward the pointer, in radians. */
 const PRODUCT_MOUSE_TURN = 0.18;
 /** Hot center of the backlight. Warm it for ruby, cool it for emerald or diamond. */
-export const CORE_COLOR = '#2e3eb9';
+export const CORE_COLOR = '#2d4de0';
 /** Peak brightness of the core sprite and the point light inside it. */
 const CORE_INTENSITY = 1.2;
 /** How far behind the product the core sits, in world units. */
@@ -220,13 +243,13 @@ const PARTICLE_COUNT = 220;
 /** Pale dust. A few motes are brighter and catch the core. */
 const DUST_COLOR = '#d5e2ff';
 /** One color for the clear, the fog, and the page behind the canvas. */
-export const BACKGROUND_COLOR = '#070814';
+export const BACKGROUND_COLOR = '#030a2b';
 /** Slightly lighter deep blue gathered around the core. */
-const BACKGROUND_GLOW = '#0c1c44';
+const BACKGROUND_GLOW = '#0a2488';
 /** Haze body. Dark and desaturated, so the frame stays navy. */
-const HAZE_COLOR = '#101624';
+const HAZE_COLOR = '#08134a';
 /** Haze only where it nears the core. Still muted, never white. */
-const HAZE_LIFT = '#2a354c';
+const HAZE_LIFT = '#1a3fc0';
 /** Exponential fog density, in the same navy as the background. */
 const FOG_DENSITY = 0.038;
 
@@ -1314,7 +1337,7 @@ function fitProduct(root: THREE.Object3D) {
  * `soft` adds broad, dimmer panels all around the product. Faceted glass and metal reflect one
  * direction per facet, so they need something bright in every direction.
  */
-function buildProductStudio(gl: THREE.WebGLRenderer, soft = false) {
+function buildProductStudio(gl: THREE.WebGLRenderer, soft = true) {
   const room = new THREE.Scene();
   room.background = new THREE.Color('#1e1e22');
   const shell = new THREE.Mesh(
@@ -1333,11 +1356,11 @@ function buildProductStudio(gl: THREE.WebGLRenderer, soft = false) {
     room.add(mesh);
   };
 
-  addStrip('#ffffff', 8, new THREE.Vector3(-3.2, 1.2, 4.2), new THREE.Vector2(0.28, 7));
-  addStrip('#fff2df', 7, new THREE.Vector3(3.4, 0.8, 3.6), new THREE.Vector2(0.32, 6.2));
-  addStrip('#ffffff', 6, new THREE.Vector3(0.2, 4.6, 1.4), new THREE.Vector2(8, 0.28));
-  addStrip('#fff6ea', 5.5, new THREE.Vector3(-1.6, 2.2, -4.2), new THREE.Vector2(0.36, 5));
-  addStrip('#f4f4f2', 1.35, new THREE.Vector3(0.4, 1.6, 6.5), new THREE.Vector2(9, 6));
+  addStrip('#ddd2df', 8, new THREE.Vector3(-3.2, 1.2, 4.2), new THREE.Vector2(4.28, 7));
+  addStrip('#ddd2df', 7, new THREE.Vector3(3.4, 0.8, 3.6), new THREE.Vector2(2.32, 6.2));
+  addStrip('#94a9f4', 6, new THREE.Vector3(0.2, 4.6, 1.4), new THREE.Vector2(16, 0.28));
+  addStrip('#fff6ea', 5.5, new THREE.Vector3(-1.6, 2.2, -4.2), new THREE.Vector2(2.36, 5));
+  addStrip('#f4f4f2', 1.35, new THREE.Vector3(0.4, 1.6, 6.5), new THREE.Vector2(18, 6));
 
   if (soft) {
     addStrip('#ffffff', 3.2, new THREE.Vector3(-4.6, 3.2, 2.2), new THREE.Vector2(4.5, 3));
@@ -1473,18 +1496,28 @@ function useProductStudio(soft = false) {
 }
 
 function creamMaterial(envMap: THREE.Texture) {
-  return new THREE.MeshPhysicalMaterial({
+  const material = new THREE.MeshPhysicalMaterial({
     color: CREAM_COLOR,
     roughness: 0.55,
     metalness: 0.02,
     sheen: 0.45,
     sheenRoughness: 0.55,
     sheenColor: CREAM_COLOR,
-    emissive: CREAM_COLOR,
+    emissive: CREAM_GLOW_COLOR,
     emissiveIntensity: CREAM_GLOW,
     envMap,
     envMapIntensity: CREAM_ENV_INTENSITY,
   });
+  // Brightest where the surface faces the camera, darker toward the silhouette, so it reads as a lit core.
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <emissivemap_fragment>',
+      `#include <emissivemap_fragment>
+       float coreFacing = abs(dot(normalize(normal), normalize(vViewPosition)));
+       totalEmissiveRadiance *= mix(1.0, pow(coreFacing, 1.5), ${CREAM_GLOW_FALLOFF.toFixed(3)});`,
+    );
+  };
+  return material;
 }
 
 function creamGeometry(radius: number, height: number) {
@@ -1533,6 +1566,42 @@ function addCream(root: THREE.Object3D, envMap: THREE.Texture) {
   root.add(cream);
 }
 
+/**
+ * The solid jar already carries its look in its textures. Keep them, and add only a glossy coat plus
+ * the studio reflections on the outer surface.
+ */
+function dressSolidProduct(root: THREE.Object3D, envMap: THREE.Texture) {
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.layers.set(PRODUCT_LAYER);
+    const source = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
+    if (!source) return;
+    const solid = new THREE.MeshPhysicalMaterial({ color: source.color });
+    solid.map = source.map;
+    solid.metalnessMap = source.metalnessMap;
+    solid.roughnessMap = source.roughnessMap;
+    solid.normalMap = source.normalMap;
+    if (source.normalScale) solid.normalScale.copy(source.normalScale);
+    solid.aoMap = source.aoMap;
+    solid.emissive.copy(source.emissive);
+    solid.emissiveMap = source.emissiveMap;
+    solid.emissiveIntensity = source.emissiveIntensity;
+    solid.metalness = source.metalness;
+    solid.roughness = source.roughness;
+    solid.side = source.side;
+    solid.transparent = source.transparent;
+    solid.opacity = source.opacity;
+    solid.alphaTest = source.alphaTest;
+    solid.envMap = envMap;
+    solid.envMapIntensity = SOLID_ENV_INTENSITY;
+    solid.clearcoat = SOLID_CLEARCOAT;
+    solid.clearcoatRoughness = SOLID_CLEARCOAT_ROUGHNESS;
+    source.dispose();
+    mesh.material = solid;
+  });
+}
+
 function dressProduct(root: THREE.Object3D, envMap: THREE.Texture, lidEnvMap: THREE.Texture) {
   const log = !productNamesLogged;
   root.traverse((obj) => {
@@ -1547,8 +1616,8 @@ function dressProduct(root: THREE.Object3D, envMap: THREE.Texture, lidEnvMap: TH
     if (!source || !role) return;
     if (role === 'jar') {
       source.dispose();
-      mesh.material = new THREE.MeshPhysicalMaterial({
-        color: '#ffffff',
+      const glass = new THREE.MeshPhysicalMaterial({
+        color: '#31229d',
         metalness: 0,
         transmission: GLASS_TRANSMISSION,
         transparent: true,
@@ -1558,12 +1627,26 @@ function dressProduct(root: THREE.Object3D, envMap: THREE.Texture, lidEnvMap: TH
         attenuationColor: GLASS_TINT,
         attenuationDistance: GLASS_ATTENUATION_DISTANCE,
         specularIntensity: 1,
-        specularColor: '#ffffff',
-        clearcoat: 0.1,
+        specularColor: '#b5b6ea',
+        clearcoat: 1,
+        clearcoatRoughness: 0.02,
         side: THREE.DoubleSide,
         envMap,
         envMapIntensity: PRODUCT_ENV_INTENSITY,
       });
+      // Light the surface where it turns away from the camera. Both walls are double-sided, so the
+      // outer and the inner wall each get their own bright edge, which is what shows the glass thickness.
+      const edge = new THREE.Color(GLASS_EDGE_COLOR);
+      glass.onBeforeCompile = (shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+           float glassFacing = abs(dot(normalize(normal), normalize(vViewPosition)));
+           totalEmissiveRadiance += vec3(${edge.r.toFixed(4)}, ${edge.g.toFixed(4)}, ${edge.b.toFixed(4)})
+             * ${GLASS_EDGE_STRENGTH.toFixed(3)} * pow(1.0 - glassFacing, ${GLASS_EDGE_POWER.toFixed(3)});`,
+        );
+      };
+      mesh.material = glass;
       return;
     }
     if (role === 'lid') {
@@ -1602,7 +1685,8 @@ function dressProduct(root: THREE.Object3D, envMap: THREE.Texture, lidEnvMap: TH
           color: source.color,
           transparent: true,
           opacity: source.opacity,
-          alphaTest: source.alphaTest,
+          //alphaTest: source.alphaTest,
+          alphaTest: 0.3,
           side: source.side,
         })
       : source;
@@ -1726,8 +1810,12 @@ function LoadedProduct({
   useLayoutEffect(() => {
     const root = cloneProduct(scene);
     const width = fitProduct(root);
-    dressProduct(root, envMap, lidEnvMap);
-    addCream(root, envMap);
+    if (PRODUCT_MODEL_SOLID) {
+      dressSolidProduct(root, envMap);
+    } else {
+      dressProduct(root, envMap, lidEnvMap);
+      addCream(root, envMap);
+    }
     onWidth(width);
     setFitted(root);
     return () => {
