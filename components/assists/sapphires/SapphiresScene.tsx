@@ -1,7 +1,7 @@
 'use client';
 
 import { useFrame, useThree } from '@react-three/fiber';
-import { Environment, Lightformer, MeshRefractionMaterial, useGLTF } from '@react-three/drei';
+import { Environment, Lightformer, MeshRefractionMaterial, useGLTF, useTexture } from '@react-three/drei';
 import {
   BlendFunction,
   BloomEffect,
@@ -27,6 +27,23 @@ const NEAR_GEM_COUNT = 3;
 const MID_GEM_COUNT = 8;
 /** Small gems scattered on the band. One shared glossy material, instanced. */
 const SMALL_GEM_COUNT = 12;
+/** Environment image the gems reflect and refract. Set to '' to use the built-in studio strips instead. */
+const GEM_HDRI_URL = '/gray-reflections.jpg';
+/**
+ * Pushes the image's mid-grays toward black while the bright lights stay bright. A mostly gray
+ * image fills every facet with light gray and fogs the gem; the sparkle comes from dark facets
+ * meeting a few bright ones. 1 leaves the image alone, 3 is strong, 5 is nearly black except the lights.
+ */
+const GEM_HDRI_CONTRAST = 6;
+/** Overall brightness of that image. */
+const GEM_HDRI_EXPOSURE = 1;
+/** How much brighter than white the brightest parts of the image become. An 8-bit image tops out at 1, so this restores the sparkle a real HDR would give. 1 leaves it alone. */
+const GEM_HDRI_HIGHLIGHT_BOOST = 4;
+/** Brightness (0 to 1) where that boost begins. Lower spreads it over more of the image. */
+const GEM_HDRI_HIGHLIGHT_START = 0.65;
+/** Color multiplied over the image. A cool tint keeps a gray image from graying the sapphire. */
+const GEM_HDRI_TINT = '#cfdcff';
+
 /** Sapphire index of refraction. Raise toward 2.4 for diamond. */
 const GEM_IOR = 1.77;
 /** Body tint. Swap for ruby (#9b1b2e), emerald (#0d6b45), or diamond (#f7f8fa). */
@@ -130,7 +147,7 @@ const JAR_COLOR = '#f0e9df';
 /** Soft glow on the ground under the jar. Dark navy so it reads as a shadow pool, not a pale disc. */
 const CONTACT_GLOW_COLOR = '#97a7e3';
 /** Brushed silver for the lid. */
-const LID_COLOR = '#c8ccd2';
+const LID_COLOR = '#04102b';
 /** Radians per second. Slow enough that the lid highlights travel. */
 const JAR_ROTATION_SPEED = 0.05;
 /** Word on the front of the jar. */
@@ -173,7 +190,7 @@ const LID_ENV_INTENSITY = 0.3;
 /** Build the lid as a sapphire in code. Blender's Glass BSDF does not export to glTF, so the glb lid arrives as plain white. */
 const LID_AS_SAPPHIRE = true;
 /** Body color of the sapphire lid. Light passing through it takes this tint. */
-const LID_SAPPHIRE_COLOR = '#2c58ff';
+const LID_SAPPHIRE_COLOR = '#04102b';
 /** Self-glow that keeps the lid blue against the dark scene. Transparent glass alone goes black here. */
 const LID_SAPPHIRE_GLOW = '#0a2c9a';
 /** Strength of that glow. 0 is pure glass. Above 1 the lid looks lit from inside. */
@@ -486,6 +503,95 @@ function coreOffset(cam: THREE.Vector3, target: THREE.Vector3) {
   target.set((-cam.x / len) * Math.abs(CORE_Z), CORE_Y, (-cam.z / len) * Math.abs(CORE_Z));
 }
 
+/**
+ * Loads the environment image once, stretches its highlights past white, bakes it into a
+ * cube map, and makes it the scene environment. After that it costs one texture lookup
+ * per gem pixel, the same as the studio strips it replaces.
+ */
+function HdriEnvironment() {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const set = useThree((s) => s.set);
+  const image = useTexture(GEM_HDRI_URL);
+
+  const source = useMemo(() => {
+    const width = 1024;
+    const height = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(image.image as CanvasImageSource, 0, 0, width, height);
+    const pixels = ctx.getImageData(0, 0, width, height).data;
+
+    const toLinear = new Float32Array(256);
+    for (let i = 0; i < 256; i++) {
+      const c = i / 255;
+      toLinear[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    }
+    const tint = new THREE.Color(GEM_HDRI_TINT);
+    const data = new Uint16Array(width * height * 4);
+    const half = THREE.DataUtils.toHalfFloat;
+    const one = half(1);
+    for (let y = 0; y < height; y++) {
+      // Texture rows run bottom to top, image rows top to bottom.
+      const dst = (height - 1 - y) * width;
+      for (let x = 0; x < width; x++) {
+        const src = (y * width + x) * 4;
+        const lr = toLinear[pixels[src]];
+        const lg = toLinear[pixels[src + 1]];
+        const lb = toLinear[pixels[src + 2]];
+        const luma = (0.2126 * lr + 0.7152 * lg + 0.0722 * lb) ** (1 / 2.2);
+        const r = lr ** GEM_HDRI_CONTRAST;
+        const g = lg ** GEM_HDRI_CONTRAST;
+        const b = lb ** GEM_HDRI_CONTRAST;
+        const t = THREE.MathUtils.smoothstep(luma, GEM_HDRI_HIGHLIGHT_START, 1);
+        const gain = GEM_HDRI_EXPOSURE * (1 + (GEM_HDRI_HIGHLIGHT_BOOST - 1) * t);
+        const out = (dst + x) * 4;
+        data[out] = half(r * tint.r * gain);
+        data[out + 1] = half(g * tint.g * gain);
+        data[out + 2] = half(b * tint.b * gain);
+        data[out + 3] = one;
+      }
+    }
+
+    const source = new THREE.DataTexture(data, width, height, THREE.RGBAFormat, THREE.HalfFloatType);
+    source.mapping = THREE.EquirectangularReflectionMapping;
+    source.colorSpace = THREE.LinearSRGBColorSpace;
+    source.minFilter = THREE.LinearFilter;
+    source.magFilter = THREE.LinearFilter;
+    source.generateMipmaps = false;
+    source.needsUpdate = true;
+    return source;
+  }, [image]);
+
+  // The cube map is built and freed inside the effect. React runs effects twice in development
+  // (mount, unmount, mount), and a render target freed in one run and reused in the next comes
+  // back empty, which left the gems reflecting nothing and looking foggy after a page refresh.
+  useLayoutEffect(() => {
+    if (!source) return;
+    // A plain cube map, the same kind the studio environment produced. The refraction material
+    // adds its own defines for prefiltered (cube-uv) maps, which clash with the ones three adds.
+    const baked = new THREE.WebGLCubeRenderTarget(512, {
+      type: THREE.HalfFloatType,
+      generateMipmaps: true,
+      minFilter: THREE.LinearMipmapLinearFilter,
+    });
+    baked.fromEquirectangularTexture(gl, source);
+    const previous = scene.environment;
+    scene.environment = baked.texture;
+    // Tell anything reading scene.environment that it changed.
+    set({});
+    return () => {
+      scene.environment = previous;
+      baked.dispose();
+    };
+  }, [gl, scene, source, set]);
+
+  return null;
+}
+
 function Studio() {
   const camera = useThree((s) => s.camera);
   const key = useRef<THREE.DirectionalLight>(null);
@@ -518,7 +624,7 @@ function Studio() {
       <color attach="background" args={[BACKGROUND_COLOR]} />
       <fogExp2 attach="fog" args={[BACKGROUND_COLOR, FOG_DENSITY]} />
       <Suspense fallback={null}>
-        <Environment resolution={512} frames={1}>
+        {GEM_HDRI_URL ? <HdriEnvironment /> : <Environment resolution={512} frames={1}>
           <Lightformer
             form="rect"
             intensity={7}
@@ -586,7 +692,7 @@ function Studio() {
             rotation={stripFacing([3.4, 2.3, -2.2], -0.7)}
             scale={[2.6, 0.18, 1]}
           />
-        </Environment>
+        </Environment>}
       </Suspense>
 
       <directionalLight ref={key} position={[0.35, 0.7, 2.6]} intensity={PRODUCT_KEY} color="#fff8f2" />
@@ -1261,6 +1367,104 @@ function buildProductStudio(gl: THREE.WebGLRenderer, soft = false) {
   return target.texture;
 }
 
+/** Word reflected in the large and mid gems. */
+const GEM_STUDIO_TEXT = 'SAPPHIRE';
+
+function makeLetteringTexture(text: string) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 2048;
+  canvas.height = 384;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '700 250px "Helvetica Neue", Arial, sans-serif';
+    // letterSpacing is missing from some older lib typings, so widen the type instead of suppressing
+    (ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = '30px';
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 12);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/**
+ * A near-black room with a few hard-edged bright shapes, the way a studio gem shot is lit. Each facet
+ * mirrors one slice of it, so most facets stay dark and a few flash white. Some of the cards carry
+ * lettering, so the word shows up, broken into pieces, in the facets.
+ */
+function buildGemStudio(gl: THREE.WebGLRenderer) {
+  const room = new THREE.Scene();
+  room.background = new THREE.Color('#020204');
+  const shell = new THREE.Mesh(
+    new THREE.BoxGeometry(24, 24, 24),
+    new THREE.MeshBasicMaterial({ color: '#030305', side: THREE.BackSide }),
+  );
+  room.add(shell);
+
+  const lettering = makeLetteringTexture(GEM_STUDIO_TEXT);
+
+  const addCard = (
+    intensity: number,
+    position: THREE.Vector3,
+    scale: THREE.Vector2,
+    roll = 0,
+    map?: THREE.Texture,
+  ) => {
+    const material = new THREE.MeshBasicMaterial({
+      color: '#ffffff',
+      map: map ?? null,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    material.color.multiplyScalar(intensity);
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+    mesh.position.copy(position);
+    mesh.scale.set(scale.x, scale.y, 1);
+    mesh.lookAt(0, 0, 0);
+    mesh.rotateZ(roll);
+    room.add(mesh);
+  };
+
+  // lettering cards, in different directions and tilts
+  addCard(7, new THREE.Vector3(-4.2, 1.6, 4.4), new THREE.Vector2(6, 1.125), 0.35, lettering);
+  addCard(6, new THREE.Vector3(4.6, -0.8, -3.8), new THREE.Vector2(6, 1.125), -0.5, lettering);
+  addCard(5, new THREE.Vector3(0.6, 4.2, -3.2), new THREE.Vector2(5, 0.94), 1.2, lettering);
+  // plain hard strips
+  addCard(9, new THREE.Vector3(3.6, 1.4, 4.2), new THREE.Vector2(0.3, 7));
+  addCard(7, new THREE.Vector3(-3.8, -0.4, -4.4), new THREE.Vector2(0.4, 6));
+  addCard(6, new THREE.Vector3(0.2, -4.6, 1.8), new THREE.Vector2(7, 0.3));
+
+  const target = new THREE.WebGLCubeRenderTarget(512, { type: THREE.HalfFloatType });
+  target.texture.mapping = THREE.CubeReflectionMapping;
+  const camera = new THREE.CubeCamera(0.1, 40, target);
+  const currentTarget = gl.getRenderTarget();
+  const currentFace = gl.getActiveCubeFace();
+  const currentMip = gl.getActiveMipmapLevel();
+  camera.update(gl, room);
+  gl.setRenderTarget(currentTarget, currentFace, currentMip);
+
+  room.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry.dispose();
+    (mesh.material as THREE.Material).dispose();
+  });
+  lettering.dispose();
+
+  return target.texture;
+}
+
+function useGemStudio() {
+  const gl = useThree((s) => s.gl);
+  const envMap = useMemo(() => buildGemStudio(gl), [gl]);
+  useEffect(() => () => envMap.dispose(), [envMap]);
+  return envMap;
+}
+
 function useProductStudio(soft = false) {
   const gl = useThree((s) => s.gl);
   const envMap = useMemo(() => buildProductStudio(gl, soft), [gl, soft]);
@@ -1676,19 +1880,27 @@ function liftGem(intensity: number) {
         `diffuseColor.rgb *= envMapIntensity;
          vec3 lit = mix(diffuseColor.rgb, vec3(1.0), nFresnel);
          float peak = max(lit.r, max(lit.g, lit.b));
-         vec3 sapphire = vec3(0.02, 0.04, 0.1);
+         vec3 sapphire = vec3(0.008, 0.016, 0.04);
          lit = mix(sapphire, lit, smoothstep(0.0, 0.18, peak));
-         lit = min(lit, vec3(0.82));
+         lit = min(lit, vec3(1.0));
          gl_FragColor = vec4(lit, diffuseColor.a);`,
       );
   };
 }
 
+/**
+ * true: the large and mid gems refract the same cube-camera studio the jar uses (dark room, bright
+ * strips). false: they use scene.environment (the HDRI / Lightformers), like the small gems.
+ */
+const GEM_USE_PRODUCT_STUDIO = true;
+
 const liftLargeGem = liftGem(4);
 const liftMidGem = liftGem(4);
 
 function Gems() {
-  const environment = useThree((s) => s.scene.environment);
+  const sceneEnvironment = useThree((s) => s.scene.environment);
+  const studio = useGemStudio();
+  const environment = GEM_USE_PRODUCT_STUDIO ? studio : sceneEnvironment;
   const geometry = useMemo(brilliantCutGeometry, []);
   const gems = useMemo(makeGems, []);
   const refractive = useMemo(() => gems.filter((gem) => gem.tier !== 'small'), [gems]);
@@ -1744,7 +1956,7 @@ function Gems() {
     if (instanced.current) instanced.current.instanceMatrix.needsUpdate = true;
   });
 
-  if (!environment) return null;
+  if (!sceneEnvironment || !environment) return null;
 
   return (
     <group>
@@ -1762,7 +1974,7 @@ function Gems() {
             bounces={gem.tier === 'large' ? 6 : 4}
             ior={GEM_IOR}
             fresnel={0.8}
-            aberrationStrength={gem.tier === 'large' ? 0.03 : 0.02}
+            aberrationStrength={gem.tier === 'large' ? 0.05 : 0.03}
             fastChroma
             color={gem.tier === 'large' ? LARGE_GEM_COLOR : GEM_COLOR}
             onBeforeCompile={gem.tier === 'large' ? liftLargeGem : liftMidGem}
