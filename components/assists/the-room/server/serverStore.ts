@@ -37,3 +37,8 @@ export function useStore<T>(store: Store<T>) {
 export const hudFocus = createStore<string | null>(null);
 /** Text of the red alert while it is showing. */
 export const hudAlert = createStore<string | null>(null);
+
+/** Whether the camera is in the room or framed on the operations board. */
+export const wallView = createStore<'room' | 'wall'>('room');
+/** True while something other than the walking controls is moving the camera. */
+export const cameraHold = { current: false };

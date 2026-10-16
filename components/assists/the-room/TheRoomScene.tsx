@@ -61,6 +61,8 @@ export type FirstPersonControlsProps = {
   /** Walkable floor, centered on the origin. */
   bounds?: { width: number; depth: number };
   obstacles?: readonly WalkObstacle[];
+  /** While `current` is true, walking and looking are paused so something else can move the camera. */
+  hold?: { current: boolean };
 };
 
 const DEFAULT_BOUNDS = { width: ROOM_WIDTH, depth: ROOM_DEPTH };
@@ -97,6 +99,7 @@ export function FirstPersonControls({
   eyeHeight = EYE_HEIGHT,
   bounds = DEFAULT_BOUNDS,
   obstacles,
+  hold,
 }: FirstPersonControlsProps = {}) {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
@@ -154,7 +157,7 @@ export function FirstPersonControls({
       el.setPointerCapture(e.pointerId);
     };
     const onMove = (e: PointerEvent) => {
-      if (!dragging) return;
+      if (!dragging || hold?.current) return;
       yaw.current -= (e.clientX - lastX) * DRAG_LOOK_SENSITIVITY;
       pitch.current = THREE.MathUtils.clamp(
         pitch.current - (e.clientY - lastY) * DRAG_LOOK_SENSITIVITY,
@@ -179,10 +182,14 @@ export function FirstPersonControls({
       el.removeEventListener('pointerup', onUp);
       el.removeEventListener('pointercancel', onUp);
     };
-  }, [gl]);
+  }, [gl, hold]);
 
   useFrame((_, rawDelta) => {
     const delta = Math.min(rawDelta, 0.05);
+    if (hold?.current) {
+      velocity.current.set(0, 0, 0);
+      return;
+    }
     const k = keys.current;
     const pos = camera.position;
 

@@ -1,7 +1,7 @@
 'use client';
 
-import { describeMachine, MACHINE_BY_ID } from '@/components/assists/the-room/server/serverRoomConfig';
-import { hudAlert, hudFocus, useStore } from '@/components/assists/the-room/server/serverStore';
+import { describeMachine, MACHINE_BY_ID, OPS_WALL_ID } from '@/components/assists/the-room/server/serverRoomConfig';
+import { hudAlert, hudFocus, useStore, wallView } from '@/components/assists/the-room/server/serverStore';
 import { feedStats } from '@/components/assists/the-room/server/wikiFeed';
 
 const GUTTER = 'px-[clamp(1rem,4vw,2.5rem)]';
@@ -47,6 +47,17 @@ function Stats() {
 
 function FocusCard() {
   const focus = useStore(hudFocus);
+  if (focus === OPS_WALL_ID) {
+    return (
+      <div className={`${PANEL} max-w-[min(18rem,calc(100vw-2rem))] px-4 py-3`}>
+        <p className="text-[11px] font-normal uppercase tracking-[0.3em] text-[#f29a1f]">Operations board</p>
+        <p className="mt-1 text-sm font-light leading-snug text-[#ecebe6]">
+          Trending pages, activity over time, the largest edits and the busiest languages
+        </p>
+        <p className={`mt-2 ${LABEL}`}>Click or tap it (or press E) for a closer look</p>
+      </div>
+    );
+  }
   const spec = focus ? MACHINE_BY_ID.get(focus) : undefined;
   if (!spec) return null;
   const { name, description } = describeMachine(spec);
@@ -74,8 +85,32 @@ function AlertBanner() {
   );
 }
 
+/** Shown while the camera is framed on the operations board. */
+function BackToRoom() {
+  return (
+    <div className="absolute inset-x-0 bottom-[clamp(1.25rem,4vh,2.5rem)] flex flex-col items-center gap-2 px-4">
+      <button
+        type="button"
+        onClick={() => wallView.set('room')}
+        className="pointer-events-auto min-h-11 border border-white/90 bg-black/35 px-8 py-2.5 text-xs font-extralight uppercase tracking-[0.35em] text-white backdrop-blur-sm transition hover:bg-white/10 focus:outline-none focus-visible:ring-1 focus-visible:ring-white"
+      >
+        Back to the room
+      </button>
+      <p className={LABEL}>or press Esc</p>
+    </div>
+  );
+}
+
 /** DOM overlay for the server room. The close button owns the top-right corner. */
 export function ServerRoomHud() {
+  const view = useStore(wallView);
+  if (view === 'wall') {
+    return (
+      <div className="pointer-events-none absolute inset-0 z-10 font-sans">
+        <BackToRoom />
+      </div>
+    );
+  }
   return (
     <div className="pointer-events-none absolute inset-0 z-10 font-sans">
       <div className={`${GUTTER} pt-[clamp(1.25rem,4vh,2.5rem)] pr-36`}>

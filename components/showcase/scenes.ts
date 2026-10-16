@@ -10,6 +10,8 @@ export type SceneConfig = {
   title: string;
   poster: string;
   closeTone: CloseTone;
+  /** Where the tile links. Defaults to /scenes/<slug>. */
+  href: string;
   Preview: ScenePreview;
 };
 
@@ -28,6 +30,7 @@ export const scenes: SceneConfig[] = sceneCatalog.map((scene) => ({
   title: scene.title,
   poster: scene.poster,
   closeTone: scene.closeTone,
+  href: 'href' in scene ? scene.href : `/scenes/${scene.slug}`,
   Preview: previews[scene.slug],
 }));
 

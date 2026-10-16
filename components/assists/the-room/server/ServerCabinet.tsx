@@ -1,11 +1,13 @@
 'use client';
 
+import { useGLTF } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import type * as THREE from 'three';
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import * as THREE from 'three';
 import {
   ANCHORS,
   CABINET,
+  CABINET_MODELS,
   type MachineSpec,
 } from '@/components/assists/the-room/server/serverRoomConfig';
 import {
@@ -18,20 +20,85 @@ import {
 import { getSharedParts } from '@/components/assists/the-room/server/serverTextures';
 import { feedStats } from '@/components/assists/the-room/server/wikiFeed';
 
-const FRONT = CABINET.depth / 2;
-/** Above 1 so screens and LEDs bloom through the grade. */
-const SCREEN_GLOW: [number, number, number] = [1.45, 1.45, 1.45];
+/** Above 1 so the screens and LEDs bloom through the grade. */
+const SCREEN_GLOW: [number, number, number] = [1.35, 1.35, 1.35];
 const LED_GLOW: [number, number, number] = [1.7, 1.7, 1.7];
+/** Brightness of the lights painted into the models (rack units behind the glass, power lights). */
+const PAINTED_GLOW = 1.6;
+
+useGLTF.preload(CABINET_MODELS.terminal);
+useGLTF.preload(CABINET_MODELS.rack);
 
 /**
- * One server cabinet. The body is a plain box for now; swap the `CabinetBody` mesh for the
- * modeled cabinet and keep the screen, LED strip, vent and tag at the ANCHORS positions.
+ * Model meshes carry UVs into their texture atlas. The live screen and LED canvases fill the
+ * whole texture, so those two meshes get their UVs stretched to 0..1 (once per model).
  */
+const normalizedGeometry = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
+function fullTextureUVs(geometry: THREE.BufferGeometry) {
+  const cached = normalizedGeometry.get(geometry);
+  if (cached) return cached;
+  const g = geometry.clone();
+  const uv = g.getAttribute('uv') as THREE.BufferAttribute;
+  let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+  for (let i = 0; i < uv.count; i++) {
+    u0 = Math.min(u0, uv.getX(i));
+    u1 = Math.max(u1, uv.getX(i));
+    v0 = Math.min(v0, uv.getY(i));
+    v1 = Math.max(v1, uv.getY(i));
+  }
+  for (let i = 0; i < uv.count; i++) {
+    // glTF UVs run top-down; canvas textures expect v = 1 at the top.
+    uv.setXY(i, (uv.getX(i) - u0) / (u1 - u0 || 1), 1 - (uv.getY(i) - v0) / (v1 - v0 || 1));
+  }
+  uv.needsUpdate = true;
+  normalizedGeometry.set(geometry, g);
+  return g;
+}
+
+/** One server cabinet: a terminal (live screen), a rack (glass door) or the tape drive. */
 export function ServerCabinet({ spec }: { spec: MachineSpec }) {
+  return (
+    <Suspense fallback={null}>
+      <CabinetModel spec={spec} />
+    </Suspense>
+  );
+}
+
+function CabinetModel({ spec }: { spec: MachineSpec }) {
   const parts = getSharedParts();
+  const gltf = useGLTF(spec.kind === 'rack' ? CABINET_MODELS.rack : CABINET_MODELS.terminal);
   const group = useRef<THREE.Group>(null);
   const led = useMemo(() => createLedPanel({ x: spec.x, z: spec.z }), [spec.x, spec.z]);
   const screen = useMemo(() => (spec.kind === 'screen' ? createScreen(spec.program ?? 0) : null), [spec.kind, spec.program]);
+
+  const model = useMemo(() => {
+    const root = gltf.scene.clone(true);
+    const owned: THREE.Material[] = [];
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const name = mesh.name || mesh.parent?.name || '';
+      if (name.startsWith('LedPanel')) {
+        mesh.geometry = fullTextureUVs(mesh.geometry);
+        mesh.material = new THREE.MeshBasicMaterial({ map: led.texture, color: new THREE.Color(...LED_GLOW) });
+        owned.push(mesh.material);
+      } else if (name.startsWith('Screen')) {
+        if (screen) {
+          mesh.geometry = fullTextureUVs(mesh.geometry);
+          mesh.material = new THREE.MeshBasicMaterial({ map: screen.texture, color: new THREE.Color(...SCREEN_GLOW) });
+          owned.push(mesh.material);
+        } else {
+          mesh.visible = false;
+        }
+      } else {
+        const material = mesh.material as THREE.MeshStandardMaterial;
+        if (material.emissiveMap) material.emissiveIntensity = PAINTED_GLOW;
+      }
+      // The tape drive has reels where the terminal's screen would be.
+      if (spec.kind === 'tape' && name.startsWith('Bezel')) mesh.visible = false;
+    });
+    return { root, owned };
+  }, [gltf, led, screen, spec.kind]);
 
   useLayoutEffect(() => {
     const object = group.current;
@@ -45,56 +112,24 @@ export function ServerCabinet({ spec }: { spec: MachineSpec }) {
     () => () => {
       led.texture.dispose();
       screen?.texture.dispose();
+      model.owned.forEach((m) => m.dispose());
     },
-    [led, screen],
+    [led, screen, model],
   );
-
-  const { screen: s, vent, led: l, tag } = ANCHORS;
 
   return (
     <group ref={group} position={[spec.x, 0, spec.z]} rotation-y={spec.rotationY} userData={{ machineId: spec.id }}>
-      {/* CabinetBody: replace with the modeled cabinet. */}
-      <mesh position-y={CABINET.height / 2} material={parts.materials.body}>
-        <boxGeometry args={[CABINET.width, CABINET.height, CABINET.depth]} />
-      </mesh>
-
-      <mesh position={[0, vent.y, FRONT + 0.002]} material={parts.materials.vent}>
-        <planeGeometry args={[vent.width, vent.height]} />
-      </mesh>
-
-      <mesh position={[0, l.y, FRONT + 0.002]}>
-        <planeGeometry args={[l.width, l.height]} />
-        <meshBasicMaterial map={led.texture} color={LED_GLOW} />
-      </mesh>
-
-      <mesh position={[tag.x, tag.y, tag.z]} rotation-x={-0.35} material={parts.materials.tag}>
-        <boxGeometry args={[0.38, 0.13, 0.05]} />
-      </mesh>
-      <mesh position={[-0.2, CABINET.height + 0.09, -0.15]} material={parts.materials.speaker}>
-        <boxGeometry args={[0.5, 0.18, 0.4]} />
-      </mesh>
-
-      {screen && (
-        <>
-          <mesh position={[0, s.y, FRONT + 0.012]} material={parts.materials.frame}>
-            <boxGeometry args={[s.width + 0.08, s.height + 0.1, 0.025]} />
-          </mesh>
-          <mesh position={[0, s.y, FRONT + 0.026]}>
-            <planeGeometry args={[s.width, s.height]} />
-            <meshBasicMaterial map={screen.texture} color={SCREEN_GLOW} />
-          </mesh>
-        </>
-      )}
-
+      <primitive object={model.root} />
       {spec.kind === 'tape' && <TapeReels />}
-
-      {/* Soft contact shadow, so the low-poly box sits on the tiles. */}
+      {/* Soft contact shadow, so the cabinet sits on the tiles. */}
       <mesh rotation-x={-Math.PI / 2} position-y={0.004} renderOrder={2} material={parts.materials.shadow}>
         <planeGeometry args={[CABINET.width + 0.8, CABINET.depth + 0.9]} />
       </mesh>
     </group>
   );
 }
+
+const FRONT = CABINET.depth / 2;
 
 /** Tape drive window: left reel follows human edits, right reel follows bot edits. */
 function TapeReels() {
@@ -114,7 +149,7 @@ function TapeReels() {
   return (
     <>
       <mesh position={[0, screen.y, FRONT + 0.012]} material={parts.materials.glass}>
-        <boxGeometry args={[screen.width + 0.06, screen.height + 0.08, 0.025]} />
+        <boxGeometry args={[screen.width + 0.12, screen.height + 0.14, 0.025]} />
       </mesh>
       {[-reels.spread, reels.spread].map((x, i) => (
         <mesh

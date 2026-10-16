@@ -29,6 +29,8 @@ export const sceneCatalog = [
     title: 'The Mainframe', 
     // TODO: replace the generated placeholder in /public/posters with a real still.
     poster: '/posters/the-room.webp',
+    /** Opens the stand-alone page instead of /scenes/the-room, so it can be shared directly. */
+    href: '/explore/mainframe',
     /** White type on the dark server room. */
     closeTone: 'light',
   },

@@ -6,11 +6,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { PALETTE, SERVER_ROOM } from '@/components/assists/the-room/server/serverRoomConfig';
 import { display } from '@/components/assists/the-room/server/serverDisplays';
-import {
-  createPosterTexture,
-  createRockTexture,
-  createTileTexture,
-} from '@/components/assists/the-room/server/serverTextures';
+import { GopherSign } from '@/components/assists/the-room/server/GopherSign';
+import { createRockTexture, createTileTexture } from '@/components/assists/the-room/server/serverTextures';
 
 const { width: RW, depth: RD, height: RH } = SERVER_ROOM;
 /** Meters of floor per texture repeat (4 × 4 tiles), so one tile is 0.6 m. */
@@ -33,7 +30,6 @@ const fixtureWhite = new THREE.Color('#ffffff');
 export function ServerRoomShell() {
   const floorMap = useMemo(() => createTileTexture(FLOOR_REPEAT_METERS, RW, RD), []);
   const rock = useMemo(() => createRockTexture(), []);
-  const poster = useMemo(() => createPosterTexture(), []);
   const fixtures = useMemo(
     () => ({
       steady: new THREE.MeshStandardMaterial({ color: '#202124', emissive: fixtureWhite, emissiveIntensity: FIXTURE_GLOW }),
@@ -43,11 +39,11 @@ export function ServerRoomShell() {
   );
   useEffect(
     () => () => {
-      [floorMap, rock, poster].forEach((t) => t.dispose());
+      [floorMap, rock].forEach((t) => t.dispose());
       fixtures.steady.dispose();
       fixtures.flicker.dispose();
     },
-    [floorMap, rock, poster, fixtures],
+    [floorMap, rock, fixtures],
   );
 
   const alarm = useRef<THREE.PointLight>(null);
@@ -101,7 +97,7 @@ export function ServerRoomShell() {
         />
       </mesh>
 
-      {/* Walls: dark rock behind the poster, dark left, pale right and entrance. */}
+      {/* Walls: dark rock behind the Gopher sign, dark left, pale right and entrance. */}
       <mesh position={[0, RH / 2, -RD / 2]}>
         <planeGeometry args={[RW, RH]} />
         <meshStandardMaterial map={rock} roughness={0.95} />
@@ -135,10 +131,8 @@ export function ServerRoomShell() {
         <meshStandardMaterial color={PALETTE.column} roughness={0.6} metalness={0.2} />
       </mesh>
 
-      <mesh position={[-3, 3.1, -RD / 2 + 0.05]}>
-        <planeGeometry args={[3.4, 4.25]} />
-        <meshBasicMaterial map={poster} />
-      </mesh>
+      {/* High enough to clear the back row of cabinets, just under the header beam. */}
+      <GopherSign position={[-3, 3.85, -RD / 2 + 0.02]} scale={0.85} />
 
       {/* Fluorescent fixtures. Emissive, so they bloom. */}
       {FIXTURES.map(([x, z], i) => (

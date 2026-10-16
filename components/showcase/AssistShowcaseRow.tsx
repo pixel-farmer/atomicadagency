@@ -59,7 +59,7 @@ function SceneTile({ scene }: { scene: SceneConfig }) {
 
   return (
     <Link
-      href={`/scenes/${scene.slug}`}
+      href={scene.href}
       prefetch={false}
       aria-label={`Preview ${scene.title}`}
       onPointerEnter={enterFromPointer}
