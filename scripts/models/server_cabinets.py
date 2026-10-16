@@ -12,6 +12,7 @@ Named nodes the room drives live:
     LedPanel   the strip of status lights. The room replaces its texture with the live LEDs.
 The textures painted here for those two are stand-ins, so the model looks right on its own.
 """
+import math
 import os
 import sys
 
@@ -369,9 +370,193 @@ def build_rack():
     return root, mats, base, emissive
 
 
+
+# ---------------------------------------------------------------------------------------------
+# Tape drive: two reels behind glass with the head between them, two vacuum columns where the
+# tape loops rise and fall, and a small operator panel. Animated by the room through these nodes:
+#     ReelLeft, ReelRight   spin about their local z axis
+#     LoopLeft, LoopRight   the dark tape loop in each column; scale.y sets how far it hangs down
+# ---------------------------------------------------------------------------------------------
+
+REEL_Y, REEL_X, REEL_R = 1.27, 0.245, 0.24
+WIN = dict(x=0.0, y=1.27, w=1.04, h=0.62, band=0.03, depth=0.07)
+COL = dict(xs=(-0.27, 0.27), top=0.88, bottom=0.34, w=0.13, band=0.022, depth=0.03)
+TAPE_BROWN = (74, 52, 36)
+
+
+def framed_window(m: Mesh, mat, cx, cy, outer, inner, z_back, z_front, r_front, r_inner, r_side):
+    """A rectangular frame standing off the door: outer sides, front band, and the inner reveal."""
+    OW, OH = outer[0] / 2, outer[1] / 2
+    IW, IH = inner[0] / 2, inner[1] / 2
+    m.box(mat, (cx - OW, cy - OH, z_back), (cx + OW, cy + OH, z_front), {"*": r_side}, skip=("front", "back"))
+    oBL, oBR, oTR, oTL = (cx - OW, cy - OH, z_front), (cx + OW, cy - OH, z_front), (cx + OW, cy + OH, z_front), (cx - OW, cy + OH, z_front)
+    iBL, iBR, iTR, iTL = (cx - IW, cy - IH, z_front), (cx + IW, cy - IH, z_front), (cx + IW, cy + IH, z_front), (cx - IW, cy + IH, z_front)
+    bBL, bBR, bTR, bTL = (cx - IW, cy - IH, z_back), (cx + IW, cy - IH, z_back), (cx + IW, cy + IH, z_back), (cx - IW, cy + IH, z_back)
+    axes = (np.array([1.0, 0, 0]), np.array([0, 1.0, 0]), (cx - OW, cy - OH, z_front), outer[0], outer[1])
+    for band in ([oBL, oBR, iBR, iBL], [oBR, oTR, iTR, iBR], [oTR, oTL, iTL, iTR], [oTL, oBL, iBL, iTL]):
+        m.planar(mat, r_front, band, axes)
+    m.quad(mat, r_inner, iBL, iBR, bBR, bBL)
+    m.quad(mat, r_inner, bTL, bTR, iTR, iTL)
+    m.quad(mat, r_inner, iBL, bBL, bTL, iTL)
+    m.quad(mat, r_inner, bBR, iBR, iTR, bTR)
+
+
+def build_tape():
+    # Wider padding: the frame reveals are thin strips, and at a distance their mipmaps would
+    # otherwise pick up colour from neighbouring regions (like the amber ACTIVE tag).
+    atlas = Atlas(size=2048, pad=12)
+    r_door = atlas.region("door", W, BODY_TOP - PLINTH, CHARCOAL, scale=0.75)
+    inner_w, inner_h = WIN["w"] - 2 * WIN["band"], WIN["h"] - 2 * WIN["band"]
+    r_back = atlas.region("window_back", inner_w, inner_h, (30, 31, 34), scale=0.8)
+    r_reel = atlas.region("reel_face", 2 * REEL_R, 2 * REEL_R, (150, 152, 156))
+    paint_leds(atlas, seed=13)
+    paint_body_common(atlas)
+    r_reel_edge = atlas.region("reel_edge", 2 * math.pi * REEL_R, 0.012, (120, 122, 126), scale=0.3)
+    r_glass = atlas.region("glass", inner_w, inner_h, (36, 38, 42), scale=0.4)
+    r_frame = atlas.region("frame_front", WIN["w"], WIN["h"], shade(CHARCOAL, 1.35), scale=0.4)
+    r_frame_in = atlas.region("frame_inner", 0.5, 0.12, shade(CHARCOAL, 0.8))
+    r_col = atlas.region("column_back", COL["w"], COL["top"] - COL["bottom"], (222, 214, 198))
+    r_col_frame = atlas.region("column_frame", COL["w"] + 2 * COL["band"], COL["top"] - COL["bottom"] + 2 * COL["band"], shade(CHARCOAL, 1.35), scale=0.5)
+    r_tape = atlas.region("tape", 0.12, 0.2, TAPE_BROWN, scale=0.5)
+    r_head = atlas.region("head", 0.12, 0.12, PALETTE["metal"])
+
+    # Door: base, then the operator panel between the vacuum columns and a grille at the bottom.
+    paint_door_base(r_door, with_vent=False)
+    px = lambda x: (x + W / 2) * DENSITY  # noqa: E731
+    x0, x1 = px(-0.16), px(0.16)
+    y0, y1 = door_px(0.86), door_px(0.38)
+    r_door.rect(x0, y0, x1, y1, PALETTE["panel"], radius=8)
+    r_door.rect(x0, y0, x1, y0 + 4, shade(CHARCOAL, 1.9), radius=2)
+    r_door.text((x0 + x1) / 2, y0 + 46, "TAPE UNIT 2", INK, 26, FONT_BOLD, anchor="ms")
+    lights = [("READY", AMBER, True), ("WRITE", (240, 240, 232), True), ("PROTECT", (90, 40, 30), False)]
+    for i, (name, color, lit) in enumerate(lights):
+        cy = y0 + 100 + i * 62
+        r_door.ellipse(x0 + 52, cy, 13, 13, color)
+        if lit:
+            atlas.glow(r_door, x0 + 52, cy, 14, 14, color)
+        r_door.text(x0 + 84, cy + 9, name, INK, 22, FONT_BOLD, anchor="ls")
+    for i, name in enumerate(["LOAD", "START", "REWIND", "UNLOAD"]):
+        cy = y0 + 300 + i * 40
+        r_door.rect(x0 + 34, cy - 14, x0 + 104, cy + 14, (58, 59, 62), radius=5)
+        r_door.rect(x0 + 34, cy - 14, x0 + 104, cy - 9, (88, 89, 93), radius=3)
+        r_door.text(x0 + 120, cy + 8, name, INK, 20, FONT_BOLD, anchor="ls")
+    gy0, gy1 = door_px(0.28), door_px(0.12)
+    r_door.rect(px(-0.45), gy0, px(0.45), gy1, shade(CHARCOAL, 0.8), radius=6)
+    for j in range(int((gy1 - gy0 - 30) // 22)):
+        for i in range(int((px(0.45) - px(-0.45) - 40) // 22)):
+            r_door.ellipse(px(-0.45) + 30 + i * 22 + (11 if j % 2 else 0), gy0 + 26 + j * 22, 5, 5, shade(CHARCOAL, 0.3))
+
+    # Window back plate: brushed panel with the tape path running down into the columns.
+    r_back.gradient(1.15, 0.9, base=(30, 31, 34))
+    for i in range(0, int(r_back.h), 6):
+        r_back.rect(0, i, r_back.w, i + 1, (34, 35, 38))
+    bx = lambda x: (x + inner_w / 2) * DENSITY  # noqa: E731
+    by = lambda y: (WIN["y"] + inner_h / 2 - y) * DENSITY  # noqa: E731
+    for sx in (-1, 1):
+        col_x = sx * abs(COL["xs"][0])
+        # Tape leaves each reel at the bottom and drops into the vacuum column below the window,
+        # and the column's other side feeds back up to the head between the reels.
+        r_back.line(bx(col_x - sx * 0.04), by(REEL_Y - 0.1), bx(col_x - sx * 0.04), by(WIN["y"] - inner_h / 2), TAPE_BROWN, 9)
+        r_back.line(bx(col_x + sx * 0.04), by(WIN["y"] - inner_h / 2), bx(sx * 0.06), by(1.08), TAPE_BROWN, 9)
+    r_back.text(18, 34, "TAPE UNIT 2 · 1600 BPI", shade(INK, 0.55), 18, FONT_BOLD, anchor="ls")
+
+    # Reel: aluminium flange with three cut-outs showing the brown tape pack, and a dark hub.
+    c = REEL_R * DENSITY
+    r_reel.fill(CHARCOAL)
+    r_reel.ellipse(c, c, c - 1, c - 1, (168, 170, 174))
+    r_reel.ellipse(c, c, c - 10, c - 10, (150, 152, 156))
+    for k in range(3):
+        a0 = math.radians(k * 120 + 20)
+        a1 = math.radians(k * 120 + 100)
+        pts = [r_reel.pt(c + 52 * math.cos(a0), c + 52 * math.sin(a0))]
+        for i in range(13):
+            a = a0 + (a1 - a0) * i / 12
+            pts.append(r_reel.pt(c + (c - 26) * math.cos(a), c + (c - 26) * math.sin(a)))
+        pts.append(r_reel.pt(c + 52 * math.cos(a1), c + 52 * math.sin(a1)))
+        r_reel.draw.polygon(pts, fill=TAPE_BROWN)
+    for rr in range(70, int(c - 26), 18):  # tape pack windings
+        r_reel.draw.arc(r_reel.box(c - rr, c - rr, c + rr, c + rr), 0, 360, fill=shade(TAPE_BROWN, 1.25), width=2)
+    for k in range(3):  # spokes between the cut-outs keep the flange reading as solid
+        a = math.radians(k * 120 + 110)
+        r_reel.line(c + 50 * math.cos(a), c + 50 * math.sin(a), c + (c - 24) * math.cos(a), c + (c - 24) * math.sin(a), (150, 152, 156), 22)
+    r_reel.ellipse(c, c, 52, 52, (40, 41, 44))
+    r_reel.ellipse(c, c, 22, 22, (150, 152, 156))
+    r_reel.ellipse(c, c, 8, 8, (30, 30, 32))
+    r_reel_edge.gradient(1.2, 0.8, base=(120, 122, 126))
+
+    # Glass: near-black so it reads as smoked when see-through, with two light streaks.
+    for x, wdt in ((0.18, 0.06), (0.3, 0.02)):
+        for i in range(int(r_glass.w * wdt)):
+            xx = r_glass.w * x + i
+            r_glass.draw.line([r_glass.pt(xx, r_glass.h), r_glass.pt(xx + r_glass.h * 0.4, 0)], fill=(150, 152, 158), width=3)
+    r_frame.bevel(1.3, 0.7, 6, base=shade(CHARCOAL, 1.35))
+    r_col.gradient(1.05, 0.88, base=(222, 214, 198))
+    atlas.glow(r_col, r_col.w / 2, r_col.h / 2, r_col.w * 0.7, r_col.h * 0.62, (150, 140, 120))
+    r_tape.rect(r_tape.w * 0.48, 0, r_tape.w * 0.52, r_tape.h, shade(TAPE_BROWN, 1.4))
+    r_head.gradient(1.3, 0.75, base=PALETTE["metal"])
+    r_head.rect(0, r_head.h * 0.45, r_head.w, r_head.h * 0.55, (20, 20, 22))
+
+    base, emissive = atlas.finish()
+
+    body = Mesh("CabinetBody", atlas)
+    build_body(body, "door")
+    zb, zf = FRONT, FRONT + WIN["depth"]
+    framed_window(body, "paint", WIN["x"], WIN["y"], (WIN["w"], WIN["h"]), (inner_w, inner_h), zb, zf, "frame_front", "frame_inner", "frame_inner")
+    hw, hh = inner_w / 2, inner_h / 2
+    z = zb + 0.002
+    body.quad("paint", "window_back", (-hw, WIN["y"] - hh, z), (hw, WIN["y"] - hh, z), (hw, WIN["y"] + hh, z), (-hw, WIN["y"] + hh, z))
+    body.box("paint", (-0.06, 1.02, zb), (0.06, 1.14, zb + 0.045), {"*": "head"})
+    for cx in COL["xs"]:
+        cw, ch = COL["w"], COL["top"] - COL["bottom"]
+        cy = (COL["top"] + COL["bottom"]) / 2
+        framed_window(body, "paint", cx, cy, (cw + 2 * COL["band"], ch + 2 * COL["band"]), (cw, ch), zb, zb + COL["depth"], "column_frame", "frame_inner", "frame_inner")
+        body.quad("lit", "column_back", (cx - cw / 2, COL["bottom"], zb + 0.002), (cx + cw / 2, COL["bottom"], zb + 0.002), (cx + cw / 2, COL["top"], zb + 0.002), (cx - cw / 2, COL["top"], zb + 0.002))
+
+    glass = Mesh("Glass", atlas)
+    zg = zf - 0.004
+    glass.quad("glass", "glass", (-hw, WIN["y"] - hh, zg), (hw, WIN["y"] - hh, zg), (hw, WIN["y"] + hh, zg), (-hw, WIN["y"] + hh, zg))
+
+    def reel(name):
+        m = Mesh(name, atlas)
+        m.cylinder_z("reel", "reel_edge", "reel_face", (0, 0, 0), REEL_R, 0.012, segments=20)
+        return m
+
+    def loop(name):
+        # Unit-height strip hanging down from the column top; the room scales it to animate.
+        m = Mesh(name, atlas)
+        lw = COL["w"] * 0.9
+        zt = zb + 0.006
+        m.quad("tape", "tape", (-lw / 2, -1.0, zt), (lw / 2, -1.0, zt), (lw / 2, 0.0, zt), (-lw / 2, 0.0, zt))
+        return m
+
+    zr = zb + 0.03
+    root = Node("CabinetTape", mesh=body, children=[
+        Node("Glass", mesh=glass),
+        Node("ReelLeft", mesh=reel("ReelLeft"), translation=(-REEL_X, REEL_Y, zr)),
+        Node("ReelRight", mesh=reel("ReelRight"), translation=(REEL_X, REEL_Y, zr)),
+        Node("LoopLeft", mesh=loop("LoopLeft"), translation=(COL["xs"][0], COL["top"], 0)),
+        Node("LoopRight", mesh=loop("LoopRight"), translation=(COL["xs"][1], COL["top"], 0)),
+        led_node(atlas),
+    ])
+    rename = {"paint": "PaintedMetal", "lit": "ColumnLight", "glass": "SmokedGlass", "reel": "ReelAluminium", "tape": "Tape", "led": "LedPanel"}
+    for n in [root] + root.children:
+        if n.mesh:
+            for p in n.mesh.prims.values():
+                p.material = rename[p.material]
+    mats = [
+        Material("PaintedMetal", roughness=0.55, metalness=0.1, emissive=True),  # panel lights
+        Material("ColumnLight", roughness=0.7, emissive=True),
+        Material("SmokedGlass", roughness=0.08, alpha=0.28),
+        Material("ReelAluminium", roughness=0.45, metalness=0.2),
+        Material("Tape", roughness=0.5),
+        Material("LedPanel", roughness=0.4, emissive=True),
+    ]
+    return root, mats, base, emissive
+
+
 if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
-    for name, build in (("cabinet-terminal", build_terminal), ("cabinet-rack", build_rack)):
+    for name, build in (("cabinet-terminal", build_terminal), ("cabinet-rack", build_rack), ("cabinet-tape", build_tape)):
         root, mats, base, emissive = build()
         out = os.path.join(OUT_DIR, f"{name}.glb")
         stats = write_glb(out, root, mats, base, emissive)

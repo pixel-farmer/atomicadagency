@@ -442,6 +442,32 @@ class Mesh:
                 uvs.reverse()
             self.poly(material, ring, uvs)
 
+    def cylinder_z(self, material, side_region, cap_region, center, radius, length, segments=16, back_cap=False):
+        """Disc or drum facing +z (a reel seen from the front). Caps the front; the back only if asked."""
+        cx, cy, cz = center
+        za, zb = cz - length / 2, cz + length / 2
+        u0, v0, u1, v1 = self.atlas.uv_rect(side_region)
+        for i in range(segments):
+            a0 = 2 * math.pi * i / segments
+            a1 = 2 * math.pi * (i + 1) / segments
+            pa = (cx + radius * math.cos(a0), cy + radius * math.sin(a0))
+            pb = (cx + radius * math.cos(a1), cy + radius * math.sin(a1))
+            ua = u0 + (u1 - u0) * i / segments
+            ub = u0 + (u1 - u0) * (i + 1) / segments
+            # Counter-clockwise around +z, so the strip faces outward.
+            self.poly(material, [(pa[0], pa[1], za), (pb[0], pb[1], za), (pb[0], pb[1], zb), (pa[0], pa[1], zb)],
+                      [(ua, v1), (ub, v1), (ub, v0), (ua, v0)])
+        cu0, cv0, cu1, cv1 = self.atlas.uv_rect(cap_region)
+        ring, uvs = [], []
+        for i in range(segments):
+            a = 2 * math.pi * i / segments
+            ring.append((cx + radius * math.cos(a), cy + radius * math.sin(a), zb))
+            uvs.append((cu0 + (cu1 - cu0) * (0.5 + 0.5 * math.cos(a)), cv0 + (cv1 - cv0) * (0.5 - 0.5 * math.sin(a))))
+        self.poly(material, ring, uvs)
+        if back_cap:
+            back = [(x, y, za) for x, y, _ in reversed(ring)]
+            self.poly(material, back, list(reversed(uvs)))
+
     @staticmethod
     def _outward(pts, axis_yz):
         p = [np.asarray(q, float) for q in pts]
@@ -529,6 +555,8 @@ class Material:
     metalness: float = 0.0
     emissive: bool = False
     double_sided: bool = False
+    #: Below 1 makes the material see-through (glass), blended in the transparent pass.
+    alpha: float = 1.0
 
 
 @dataclass
@@ -600,6 +628,9 @@ def write_glb(path, root: Node, materials: list[Material], base_img: Image.Image
             gm["emissiveFactor"] = [1, 1, 1]
         if m.double_sided:
             gm["doubleSided"] = True
+        if m.alpha < 1:
+            gm["alphaMode"] = "BLEND"
+            gm["pbrMetallicRoughness"]["baseColorFactor"] = [1, 1, 1, m.alpha]
         mat_index[m.name] = len(gl_materials)
         gl_materials.append(gm)
 

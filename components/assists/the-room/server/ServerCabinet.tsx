@@ -5,7 +5,6 @@ import { useFrame } from '@react-three/fiber';
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import {
-  ANCHORS,
   CABINET,
   CABINET_MODELS,
   type MachineSpec,
@@ -28,6 +27,7 @@ const PAINTED_GLOW = 1.6;
 
 useGLTF.preload(CABINET_MODELS.terminal);
 useGLTF.preload(CABINET_MODELS.rack);
+useGLTF.preload(CABINET_MODELS.tape);
 
 /**
  * Model meshes carry UVs into their texture atlas. The live screen and LED canvases fill the
@@ -55,7 +55,7 @@ function fullTextureUVs(geometry: THREE.BufferGeometry) {
   return g;
 }
 
-/** One server cabinet: a terminal (live screen), a rack (glass door) or the tape drive. */
+/** One server cabinet: a terminal (live screen), a rack (glass door) or the tape drive (animated). */
 export function ServerCabinet({ spec }: { spec: MachineSpec }) {
   return (
     <Suspense fallback={null}>
@@ -66,7 +66,7 @@ export function ServerCabinet({ spec }: { spec: MachineSpec }) {
 
 function CabinetModel({ spec }: { spec: MachineSpec }) {
   const parts = getSharedParts();
-  const gltf = useGLTF(spec.kind === 'rack' ? CABINET_MODELS.rack : CABINET_MODELS.terminal);
+  const gltf = useGLTF(spec.kind === 'rack' ? CABINET_MODELS.rack : spec.kind === 'tape' ? CABINET_MODELS.tape : CABINET_MODELS.terminal);
   const group = useRef<THREE.Group>(null);
   const led = useMemo(() => createLedPanel({ x: spec.x, z: spec.z }), [spec.x, spec.z]);
   const screen = useMemo(() => (spec.kind === 'screen' ? createScreen(spec.program ?? 0) : null), [spec.kind, spec.program]);
@@ -94,8 +94,6 @@ function CabinetModel({ spec }: { spec: MachineSpec }) {
         const material = mesh.material as THREE.MeshStandardMaterial;
         if (material.emissiveMap) material.emissiveIntensity = PAINTED_GLOW;
       }
-      // The tape drive has reels where the terminal's screen would be.
-      if (spec.kind === 'tape' && name.startsWith('Bezel')) mesh.visible = false;
     });
     return { root, owned };
   }, [gltf, led, screen, spec.kind]);
@@ -120,7 +118,7 @@ function CabinetModel({ spec }: { spec: MachineSpec }) {
   return (
     <group ref={group} position={[spec.x, 0, spec.z]} rotation-y={spec.rotationY} userData={{ machineId: spec.id }}>
       <primitive object={model.root} />
-      {spec.kind === 'tape' && <TapeReels />}
+      {spec.kind === 'tape' && <TapeAnimator root={model.root} />}
       {/* Soft contact shadow, so the cabinet sits on the tiles. */}
       <mesh rotation-x={-Math.PI / 2} position-y={0.004} renderOrder={2} material={parts.materials.shadow}>
         <planeGeometry args={[CABINET.width + 0.8, CABINET.depth + 0.9]} />
@@ -129,39 +127,71 @@ function CabinetModel({ spec }: { spec: MachineSpec }) {
   );
 }
 
-const FRONT = CABINET.depth / 2;
+/** Seconds between rewinds, and how long a rewind lasts. */
+const REWIND_EVERY = [45, 75] as const;
+const REWIND_SECONDS = 3.2;
+/** Reel speed in radians per second while writing, and while rewinding. */
+const WRITE_SPEED = 7;
+const REWIND_SPEED = -18;
+/** How far each tape loop hangs into its column, in metres (the columns are 0.54 m tall). */
+const LOOP_MIN = 0.12;
+const LOOP_MAX = 0.48;
 
-/** Tape drive window: left reel follows human edits, right reel follows bot edits. */
-function TapeReels() {
-  const parts = getSharedParts();
-  const left = useRef<THREE.Mesh>(null);
-  const right = useRef<THREE.Mesh>(null);
-  const { reels, screen } = ANCHORS;
+/**
+ * Drives a tape cabinet: the reels move in short bursts, more often when edits are pouring in,
+ * the vacuum-column loops take up the slack, and every minute or so the tape rewinds.
+ */
+function TapeAnimator({ root }: { root: THREE.Object3D }) {
+  const parts = useMemo(
+    () => ({
+      left: root.getObjectByName('ReelLeft'),
+      right: root.getObjectByName('ReelRight'),
+      loopL: root.getObjectByName('LoopLeft'),
+      loopR: root.getObjectByName('LoopRight'),
+    }),
+    [root],
+  );
+  const state = useRef({ speed: 0, burstLeft: 0, nextRewind: REWIND_EVERY[0] as number, rewindLeft: 0, slack: 0, t: 0 });
 
   useFrame((_, rawDelta) => {
-    const delta = Math.min(rawDelta, 0.05);
-    const { rate, botShare } = feedStats.get();
-    const perSecond = rate / 60;
-    if (left.current) left.current.rotation.y -= delta * (0.4 + perSecond * (1 - botShare) * 0.35);
-    if (right.current) right.current.rotation.y -= delta * (0.4 + perSecond * botShare * 0.35);
+    const dt = Math.min(rawDelta, 0.05);
+    const s = state.current;
+    s.t += dt;
+    const perSecond = feedStats.get().rate / 60;
+
+    let target = 0;
+    if (s.rewindLeft > 0) {
+      s.rewindLeft -= dt;
+      target = REWIND_SPEED;
+    } else if (s.t > s.nextRewind) {
+      s.rewindLeft = REWIND_SECONDS;
+      s.nextRewind = s.t + REWIND_SECONDS + REWIND_EVERY[0] + Math.random() * (REWIND_EVERY[1] - REWIND_EVERY[0]);
+    } else {
+      // Busier feed, more frequent bursts (a couple a second at typical Wikipedia traffic).
+      if (s.burstLeft <= 0 && Math.random() < dt * Math.min(4, 0.4 + perSecond * 0.2)) {
+        s.burstLeft = 0.18 + Math.random() * 0.4;
+      }
+      if (s.burstLeft > 0) {
+        s.burstLeft -= dt;
+        target = WRITE_SPEED;
+      }
+    }
+    // Real drives start and stop hard, but not instantly.
+    s.speed += (target - s.speed) * (1 - Math.exp(-14 * dt));
+    if (parts.left) parts.left.rotation.z -= s.speed * dt;
+    // The take-up reel holds more tape, so it turns a little slower.
+    if (parts.right) parts.right.rotation.z -= s.speed * 0.82 * dt;
+
+    // Slack swings toward one column while the tape moves, then the servos even it out.
+    s.slack += (s.speed / WRITE_SPEED) * dt * 1.6;
+    s.slack *= Math.exp(-2.2 * dt);
+    const mid = (LOOP_MIN + LOOP_MAX) / 2;
+    const swing = (LOOP_MAX - LOOP_MIN) / 2;
+    const wobble = Math.sin(s.t * 3.1) * 0.015;
+    const k = Math.max(-1, Math.min(1, s.slack));
+    if (parts.loopL) parts.loopL.scale.y = mid - k * swing + wobble;
+    if (parts.loopR) parts.loopR.scale.y = mid + k * swing - wobble;
   });
 
-  return (
-    <>
-      <mesh position={[0, screen.y, FRONT + 0.012]} material={parts.materials.glass}>
-        <boxGeometry args={[screen.width + 0.12, screen.height + 0.14, 0.025]} />
-      </mesh>
-      {[-reels.spread, reels.spread].map((x, i) => (
-        <mesh
-          key={x}
-          ref={i === 0 ? left : right}
-          position={[x, reels.y, FRONT + 0.05]}
-          rotation-x={Math.PI / 2}
-          material={parts.materials.reel}
-        >
-          <cylinderGeometry args={[reels.radius, reels.radius, 0.04, 32]} />
-        </mesh>
-      ))}
-    </>
-  );
+  return null;
 }

@@ -25,20 +25,13 @@ export const PALETTE = {
 export const CABINET = { width: 1.1, height: 2.0, depth: 1.2 } as const;
 
 /**
- * Where the live parts sit on a cabinet, in the cabinet's local space (front face is +Z).
- * These match the models built by scripts/models/server_cabinets.py; the screen and LED strip
- * themselves come from the model's Screen and LedPanel meshes.
+ * Cabinet models, built by scripts/models/server_cabinets.py. Their Screen and LedPanel meshes
+ * get the live canvases; the tape drive's ReelLeft/ReelRight and LoopLeft/LoopRight are animated.
  */
-export const ANCHORS = {
-  screen: { y: 1.0, width: 0.86, height: 0.7 },
-  led: { y: 1.72, width: 0.92, height: 0.23 },
-  reels: { y: 1.04, spread: 0.23, radius: 0.2 },
-} as const;
-
-/** Models for each cabinet type. The tape drive reuses the terminal cabinet without its screen. */
 export const CABINET_MODELS = {
   terminal: '/models/mainframe/cabinet-terminal.glb',
   rack: '/models/mainframe/cabinet-rack.glb',
+  tape: '/models/mainframe/cabinet-tape.glb',
 } as const;
 
 /** What each monitor shows. The order is the order they are handed out along the rows. */
@@ -109,7 +102,7 @@ export const OBSTACLES: Obstacle[] = MACHINES.map((m) => {
 
 export function describeMachine(spec: MachineSpec) {
   if (spec.kind === 'tape') {
-    return { name: 'Tape drive', description: 'Left reel spins with human edits, right reel with bot edits' };
+    return { name: 'Tape drive', description: 'Writes in bursts as edits arrive, and rewinds every minute or so' };
   }
   if (spec.kind === 'rack') {
     return { name: 'Rack cabinet', description: 'Status lights blink white for people and amber for bots' };
