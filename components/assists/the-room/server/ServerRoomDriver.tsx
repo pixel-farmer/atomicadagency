@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { FOCUS_DISTANCE } from '@/components/assists/the-room/server/serverRoomConfig';
 import {
+  display,
   drawLedPanel,
   drawScreen,
   ingest,
@@ -14,8 +15,9 @@ import {
   screens,
   settle,
 } from '@/components/assists/the-room/server/serverDisplays';
+import { serverAudio } from '@/components/assists/the-room/server/serverAudio';
 import { hudFocus } from '@/components/assists/the-room/server/serverStore';
-import { feedQueue } from '@/components/assists/the-room/server/wikiFeed';
+import { feedQueue, feedStats } from '@/components/assists/the-room/server/wikiFeed';
 
 /** Edits drawn per frame at most. Bursts queue up instead of stalling a frame. */
 const EDITS_PER_FRAME = 14;
@@ -25,6 +27,7 @@ const SCREENS_PER_FRAME = 3;
 const FOCUS_EVERY = 6;
 
 const CENTER = new THREE.Vector2(0, 0);
+const forward = new THREE.Vector3();
 
 /** Moves edits from the feed into the room and redraws the canvases. Renders nothing. */
 export function ServerRoomDriver() {
@@ -48,11 +51,23 @@ export function ServerRoomDriver() {
     const k = tick.current;
     k.frame++;
 
+    const audio = serverAudio.current;
+    let printed = false;
     for (let i = 0; i < EDITS_PER_FRAME && feedQueue.length; i++) {
       const ev = feedQueue.shift();
-      if (ev) ingest(ev, now);
+      if (!ev) continue;
+      const spot = ingest(ev, now);
+      audio?.edit(ev, spot);
+      printed = true;
     }
     settle(delta, now);
+
+    if (audio) {
+      if (printed) audio.printLine();
+      audio.update(feedStats.get(), display.alertUntil > 0, t);
+      camera.getWorldDirection(forward);
+      audio.setListener(camera.position, forward);
+    }
 
     for (let i = 0; i < SCREENS_PER_FRAME && screens.length; i++) {
       drawScreen(screens[k.nextScreen % screens.length], t);

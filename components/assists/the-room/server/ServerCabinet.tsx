@@ -30,7 +30,7 @@ const LED_GLOW: [number, number, number] = [1.7, 1.7, 1.7];
 export function ServerCabinet({ spec }: { spec: MachineSpec }) {
   const parts = getSharedParts();
   const group = useRef<THREE.Group>(null);
-  const led = useMemo(() => createLedPanel(), []);
+  const led = useMemo(() => createLedPanel({ x: spec.x, z: spec.z }), [spec.x, spec.z]);
   const screen = useMemo(() => (spec.kind === 'screen' ? createScreen(spec.program ?? 0) : null), [spec.kind, spec.program]);
 
   useLayoutEffect(() => {

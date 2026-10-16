@@ -5,6 +5,7 @@ import { CanvasWrapper } from '@/components/canvas';
 import { TheRoomJoystick } from '@/components/assists/the-room/TheRoomJoystick';
 import { ServerRoomHud } from '@/components/assists/the-room/server/ServerRoomHud';
 import { ServerRoomScene } from '@/components/assists/the-room/server/ServerRoomScene';
+import { ServerRoomSound } from '@/components/assists/the-room/server/ServerRoomSound';
 import { startWikiFeed } from '@/components/assists/the-room/server/wikiFeed';
 
 export function TheRoomExperience() {
@@ -34,6 +35,7 @@ export function TheRoomExperience() {
         <ServerRoomScene />
       </CanvasWrapper>
       <ServerRoomHud />
+      <ServerRoomSound />
       {touch && (
         <TheRoomJoystick className="absolute bottom-[calc(clamp(1.25rem,4vh,2.5rem)+2rem)] left-[clamp(1rem,4vw,2.5rem)] z-10" />
       )}

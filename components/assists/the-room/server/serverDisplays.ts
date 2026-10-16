@@ -55,7 +55,7 @@ function formatBytes(delta: number) {
   return (delta >= 0 ? '+' : '−') + Math.abs(delta).toLocaleString('en-US');
 }
 
-/** Turns one edit into blinks, log lines and printer paper. */
+/** Turns one edit into blinks, log lines and printer paper. Returns where on the floor it blinked. */
 export function ingest(ev: EditEvent, now: number) {
   const panel = leds[Math.floor(Math.random() * leds.length)];
   if (panel) {
@@ -84,6 +84,7 @@ export function ingest(ev: EditEvent, now: number) {
     display.alertUntil = now + ALERT_SECONDS * 1000;
     hudAlert.set(`Large edit detected · ${wikiLabel(ev.wiki)} ${formatBytes(ev.delta)} bytes`);
   }
+  return panel?.spot ?? null;
 }
 
 /** Per-frame easing that doesn't depend on new edits. */
@@ -101,7 +102,8 @@ export function settle(dt: number, now: number) {
 /* ------------------------------------------------------------------------------------------ */
 
 export type ScreenEntry = CanvasTex & { program: number };
-export type LedPanel = CanvasTex & { values: Float32Array; bot: Uint8Array };
+/** `spot` is the cabinet's place on the floor, so sounds can come from the panel that blinked. */
+export type LedPanel = CanvasTex & { values: Float32Array; bot: Uint8Array; spot: { x: number; z: number } };
 
 export const screens: ScreenEntry[] = [];
 export const leds: LedPanel[] = [];
@@ -126,9 +128,10 @@ export function registerMachine(id: string, object: THREE.Object3D) {
 const LED_COLS = 24;
 const LED_ROWS = 5;
 
-export function createLedPanel(): LedPanel {
+export function createLedPanel(spot: { x: number; z: number }): LedPanel {
   return {
     ...canvasTexture(192, 48),
+    spot,
     values: new Float32Array(LED_COLS * LED_ROWS),
     bot: new Uint8Array(LED_COLS * LED_ROWS),
   };

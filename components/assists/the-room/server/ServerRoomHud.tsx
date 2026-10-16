@@ -88,8 +88,8 @@ export function ServerRoomHud() {
         <Stats />
       </div>
       <AlertBanner />
-      {/* On phones the card sits above the joystick and the hint line. */}
-      <div className={`absolute bottom-[calc(clamp(1.25rem,4vh,2.5rem)+10rem)] right-0 sm:bottom-[clamp(1.25rem,4vh,2.5rem)] ${GUTTER}`}>
+      {/* Sits above the sound button; on phones, also above the joystick and the hint line. */}
+      <div className={`absolute bottom-[calc(clamp(1.25rem,4vh,2.5rem)+10rem)] right-0 sm:bottom-[calc(clamp(1.25rem,4vh,2.5rem)+3.5rem)] ${GUTTER}`}>
         <FocusCard />
       </div>
     </div>

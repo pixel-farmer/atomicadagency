@@ -50,7 +50,7 @@ function buildSeamlessLoop(ctx: AudioContext, src: AudioBuffer): AudioBuffer {
   return out;
 }
 
-function SoundOnIcon() {
+export function SoundOnIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
@@ -71,7 +71,7 @@ function SoundOnIcon() {
   );
 }
 
-function SoundOffIcon() {
+export function SoundOffIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
