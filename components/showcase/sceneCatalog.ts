@@ -26,7 +26,7 @@ export const sceneCatalog = [
   },
   {
     slug: 'the-room',
-    title: 'The Room',
+    title: 'Server Room',
     // TODO: replace the generated placeholder in /public/posters with a real still.
     poster: '/posters/the-room.webp',
     /** White type on the dark server room. */
