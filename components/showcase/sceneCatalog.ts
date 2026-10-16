@@ -29,8 +29,8 @@ export const sceneCatalog = [
     title: 'The Room',
     // TODO: replace the generated placeholder in /public/posters with a real still.
     poster: '/posters/the-room.webp',
-    /** Dark type on the daylight room. */
-    closeTone: 'dark',
+    /** White type on the dark server room. */
+    closeTone: 'light',
   },
   {
     slug: 'open-field',

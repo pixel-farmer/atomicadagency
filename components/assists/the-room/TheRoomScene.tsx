@@ -52,7 +52,52 @@ function isTypingTarget(target: EventTarget | null) {
   );
 }
 
-function FirstPersonControls() {
+/** A floor footprint the camera can't walk into (x/z in meters). */
+export type WalkObstacle = { minX: number; maxX: number; minZ: number; maxZ: number };
+
+export type FirstPersonControlsProps = {
+  start?: THREE.Vector3;
+  eyeHeight?: number;
+  /** Walkable floor, centered on the origin. */
+  bounds?: { width: number; depth: number };
+  obstacles?: readonly WalkObstacle[];
+};
+
+const DEFAULT_BOUNDS = { width: ROOM_WIDTH, depth: ROOM_DEPTH };
+
+/** Pushes the camera out of any obstacle it has walked into, keeping BODY_RADIUS of clearance. */
+function resolveObstacles(pos: THREE.Vector3, obstacles: readonly WalkObstacle[]) {
+  for (const o of obstacles) {
+    const cx = THREE.MathUtils.clamp(pos.x, o.minX, o.maxX);
+    const cz = THREE.MathUtils.clamp(pos.z, o.minZ, o.maxZ);
+    const dx = pos.x - cx;
+    const dz = pos.z - cz;
+    const d2 = dx * dx + dz * dz;
+    if (d2 >= BODY_RADIUS * BODY_RADIUS) continue;
+    if (d2 > 1e-8) {
+      const d = Math.sqrt(d2);
+      pos.x = cx + (dx / d) * BODY_RADIUS;
+      pos.z = cz + (dz / d) * BODY_RADIUS;
+    } else {
+      // Center is inside the box: leave by the nearest side.
+      const exits = [
+        [o.minX - BODY_RADIUS - pos.x, 0],
+        [o.maxX + BODY_RADIUS - pos.x, 0],
+        [0, o.minZ - BODY_RADIUS - pos.z],
+        [0, o.maxZ + BODY_RADIUS - pos.z],
+      ].sort((a, b) => Math.abs(a[0] + a[1]) - Math.abs(b[0] + b[1]));
+      pos.x += exits[0][0];
+      pos.z += exits[0][1];
+    }
+  }
+}
+
+export function FirstPersonControls({
+  start = START_POSITION,
+  eyeHeight = EYE_HEIGHT,
+  bounds = DEFAULT_BOUNDS,
+  obstacles,
+}: FirstPersonControlsProps = {}) {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
   const keys = useRef<Keys>({
@@ -68,11 +113,11 @@ function FirstPersonControls() {
   const velocity = useRef(new THREE.Vector3());
 
   useLayoutEffect(() => {
-    camera.position.copy(START_POSITION);
+    camera.position.copy(start);
     yaw.current = 0;
     pitch.current = -0.08;
     camera.rotation.set(pitch.current, yaw.current, 0, 'YXZ');
-  }, [camera]);
+  }, [camera, start]);
 
   useEffect(() => {
     const setKey = (e: KeyboardEvent, down: boolean) => {
@@ -154,11 +199,12 @@ function FirstPersonControls() {
 
     velocity.current.lerp(wish, 1 - Math.exp(-MOVE_SMOOTHING * delta));
     pos.addScaledVector(velocity.current, delta);
-    const maxX = ROOM_WIDTH / 2 - BODY_RADIUS;
-    const maxZ = ROOM_DEPTH / 2 - BODY_RADIUS;
+    if (obstacles) resolveObstacles(pos, obstacles);
+    const maxX = bounds.width / 2 - BODY_RADIUS;
+    const maxZ = bounds.depth / 2 - BODY_RADIUS;
     pos.x = THREE.MathUtils.clamp(pos.x, -maxX, maxX);
     pos.z = THREE.MathUtils.clamp(pos.z, -maxZ, maxZ);
-    pos.y = EYE_HEIGHT;
+    pos.y = eyeHeight;
 
     camera.rotation.set(pitch.current, yaw.current, 0, 'YXZ');
   });
