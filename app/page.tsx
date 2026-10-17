@@ -1,4 +1,5 @@
 import { AssistShowcaseRow } from '@/components/showcase/AssistShowcaseRow';
+import { VaxionAbout } from '@/components/marketing/VaxionAbout';
 import { VaxionHomeBackdrop } from '@/components/marketing/VaxionHomeBackdrop';
 import { VaxionHomeHero } from '@/components/marketing/VaxionHomeHero';
 
@@ -10,6 +11,7 @@ export default function HomePage() {
         <VaxionHomeHero />
       </section>
       <AssistShowcaseRow />
+      <VaxionAbout />
       <footer className="relative z-[2] flex flex-row flex-nowrap items-center justify-center gap-10 px-[clamp(1rem,4vw,2.5rem)] pb-16 pt-2 text-center">
         <p className="font-sans text-[11px] font-extralight uppercase tracking-[0.35em] text-white/75">
           Social

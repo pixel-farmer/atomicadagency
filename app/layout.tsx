@@ -17,7 +17,15 @@ const outfit = Outfit({
 
 export const metadata: Metadata = {
   title: 'Vaxion Studios',
-  description: 'Vaxion Studios',
+  description:
+    'Vaxion Studios builds interactive 3D for the web with WebGL and React Three Fiber: shader scenes, product showcases, and immersive brand experiences.',
+  openGraph: {
+    title: 'Vaxion Studios',
+    description: 'Interactive 3D for the web, built with WebGL and React Three Fiber.',
+    url: 'https://www.vaxionstudios.com',
+    siteName: 'Vaxion Studios',
+    type: 'website',
+  },
 };
 
 export default function RootLayout({
