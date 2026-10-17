@@ -7,6 +7,13 @@ export const sceneCatalog = [
     poster: '/posters/black-water-koi.webp',
     /** White type on the black pond. */
     closeTone: 'light',
+    /** Shown on the scene page with a buy link. */
+    product: {
+      blurb:
+        'A drop-in, full-viewport 3D koi pond for Next.js and React Three Fiber: dark shader water, rain ripples, and a configurable school of animated koi. Built for landing pages, hero sections, and portfolio sites where you want calm motion without a heavy video file.',
+      buyLabel: 'Get Black Water Koi on Gumroad',
+      buyUrl: 'https://vaxionstudios.gumroad.com/l/blackwaterkoi',
+    },
   },
   {
     slug: 'ocean-waves',
@@ -15,6 +22,12 @@ export const sceneCatalog = [
     poster: '/posters/ocean-waves.webp',
     /** Dark type on the pale shore. */
     closeTone: 'dark',
+    product: {
+      blurb:
+        'A drop-in, full-viewport moody shore for Next.js and React Three Fiber: shader rolling swells, tiled sand, soft sky, and optional looped wave audio with a mic toggle you can hide in config. Built for hero sections and landing pages without a heavy video file.',
+      buyLabel: 'Get Ocean Waves on Gumroad',
+      buyUrl: 'https://vaxionstudios.gumroad.com/l/oceanwaves',
+    },
   },
   {
     slug: 'starfield',
